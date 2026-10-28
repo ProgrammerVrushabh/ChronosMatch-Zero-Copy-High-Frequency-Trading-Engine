@@ -30,7 +30,7 @@ const MAX_BENCHMARK_COUNT = 1_000_000;
 
 app.use(express.json());
 app.use((req, res, next) => {
-  const allowedOrigin = process.env.FRONTEND_URL?.trim();
+  const allowedOrigin = process.env.FRONTEND_URL?.trim() || 'https://infotact-project-nine.vercel.app';
   if (allowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
