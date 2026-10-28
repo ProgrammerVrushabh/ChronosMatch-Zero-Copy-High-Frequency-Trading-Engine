@@ -1,6 +1,9 @@
 node_modules/
 build/
 dist/
+dist-server/
+__pycache__/
+*.py[cod]
 coverage/
 .DS_Store
 *.log
