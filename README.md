@@ -125,6 +125,20 @@ Vercel production URL, then set `VITE_API_URL` in the Vercel project to the
 Render service URL and redeploy. This enables the live engine API and SSE
 telemetry stream used by the order book.
 
+### Oracle Cloud Always Free VM
+
+For a continuously running free-tier backend, create an Ubuntu VM in Oracle
+Cloud Always Free, allow inbound TCP port 80 in its security list, then run:
+
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ProgrammerVrushabh/ChronosMatch-Zero-Copy-High-Frequency-Trading-Engine/main/oracle/install.sh)"
+```
+
+The script installs Docker, starts the engine with systemd, and serves the API
+on port 80. Set Vercel's `VITE_API_URL` to the VM's public IP, then redeploy
+the frontend. Use a reserved public IP or domain name so the Vercel setting
+does not change.
+
 On Windows PowerShell, replace `npm` with `npm.cmd` in these commands if the
 execution-policy error occurs.
 
