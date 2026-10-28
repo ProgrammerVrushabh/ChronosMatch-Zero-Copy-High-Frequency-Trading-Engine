@@ -1,0 +1,196 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "User Profile",
+      "description": "Trader profile with terminal settings and permissions",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Firebase Auth UID"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Display name or desk pseudonym"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["trader", "quant", "compliance_officer", "admin"],
+          "description": "Trader organizational role"
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["steel_charcoal", "obsidian_neon"],
+          "description": "UI Theme preference"
+        },
+        "preferredTicker": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "Primary traded instrument symbol"
+        },
+        "whaleThreshold": {
+          "type": "number",
+          "description": "Custom threshold for whale order sweep alerts"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account registration timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Profile last updated timestamp"
+        }
+      },
+      "required": ["userId", "email", "role", "theme", "createdAt"]
+    },
+    "watchlistItem": {
+      "title": "Watchlist Item",
+      "description": "Market symbol tracked by the quantitative trader",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Owner user ID"
+        },
+        "symbol": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "Ticker symbol e.g. NVDA, AAPL"
+        },
+        "targetPrice": {
+          "type": "number",
+          "description": "Target execution limit price"
+        },
+        "alertUpper": {
+          "type": "number",
+          "description": "Upper breakout alert price"
+        },
+        "alertLower": {
+          "type": "number",
+          "description": "Lower break alert price"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Trader thesis or notes"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["userId", "symbol", "createdAt"]
+    },
+    "savedTrade": {
+      "title": "Saved Audit Trade",
+      "description": "Institutional trade record saved to cloud compliance vault",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Owner user ID"
+        },
+        "tradeId": {
+          "type": "number",
+          "description": "Engine trade match sequence ID"
+        },
+        "symbol": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "Ticker symbol"
+        },
+        "side": {
+          "type": "string",
+          "enum": ["BUY", "SELL"],
+          "description": "Order trade execution side"
+        },
+        "price": {
+          "type": "number",
+          "description": "Match price"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Filled volume"
+        },
+        "latencyUs": {
+          "type": "number",
+          "description": "Execution latency in microseconds"
+        },
+        "isWhale": {
+          "type": "boolean",
+          "description": "Whether execution swept multiple levels"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of trade persist"
+        }
+      },
+      "required": ["userId", "tradeId", "symbol", "side", "price", "quantity", "createdAt"]
+    },
+    "terminalSetting": {
+      "title": "Terminal Setting",
+      "description": "Trader configuration preferences for dashboard",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Owner user ID"
+        },
+        "refreshRateMs": {
+          "type": "number",
+          "description": "Telemetry poll/draw throttle in ms"
+        },
+        "soundEnabled": {
+          "type": "boolean",
+          "description": "Audible whale alert trigger"
+        },
+        "depthLevels": {
+          "type": "number",
+          "description": "L2 order book visual depth"
+        },
+        "autoBurstSimulation": {
+          "type": "boolean",
+          "description": "Automatic traffic spike testing"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["userId", "refreshRateMs", "depthLevels", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "Stores user profiles with role and preferences"
+    },
+    "/users/{userId}/watchlist/{symbol}": {
+      "schema": "watchlistItem",
+      "description": "Stores individual watchlist entries tracked by the user"
+    },
+    "/users/{userId}/trades/{tradeId}": {
+      "schema": "savedTrade",
+      "description": "Stores institutional trade records saved to compliance cloud vault"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "terminalSetting",
+      "description": "Stores custom terminal settings per user"
+    }
+  }
+}

@@ -1,0 +1,160 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default-deny catch-all for Zero-Trust security
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'nipanevrushabh6@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprint for userProfile
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['userId', 'email', 'role', 'theme', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'email', 'displayName', 'role', 'theme', 'preferredTicker', 'whaleThreshold', 'createdAt', 'updatedAt']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.email is string && data.email.size() <= 256 &&
+        data.role in ['trader', 'quant', 'compliance_officer', 'admin'] &&
+        data.theme in ['steel_charcoal', 'obsidian_neon'] &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+        (!('preferredTicker' in data) || (data.preferredTicker is string && data.preferredTicker.size() <= 10)) &&
+        (!('whaleThreshold' in data) || data.whaleThreshold is number);
+    }
+
+    // Validation Blueprint for watchlistItem
+    function isValidWatchlistItem(data) {
+      return data.keys().hasAll(['userId', 'symbol', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'symbol', 'targetPrice', 'alertUpper', 'alertLower', 'notes', 'createdAt']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.symbol is string && data.symbol.size() <= 10 &&
+        (!('targetPrice' in data) || data.targetPrice is number) &&
+        (!('alertUpper' in data) || data.alertUpper is number) &&
+        (!('alertLower' in data) || data.alertLower is number) &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 200));
+    }
+
+    // Validation Blueprint for savedTrade
+    function isValidSavedTrade(data) {
+      return data.keys().hasAll(['userId', 'tradeId', 'symbol', 'side', 'price', 'quantity', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'tradeId', 'symbol', 'side', 'price', 'quantity', 'latencyUs', 'isWhale', 'createdAt']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.tradeId is number &&
+        data.symbol is string && data.symbol.size() <= 10 &&
+        data.side in ['BUY', 'SELL'] &&
+        data.price is number &&
+        data.quantity is number &&
+        (!('latencyUs' in data) || data.latencyUs is number) &&
+        (!('isWhale' in data) || data.isWhale is bool);
+    }
+
+    // Validation Blueprint for terminalSetting
+    function isValidTerminalSetting(data) {
+      return data.keys().hasAll(['userId', 'refreshRateMs', 'depthLevels', 'updatedAt']) &&
+        data.keys().hasOnly(['userId', 'refreshRateMs', 'soundEnabled', 'depthLevels', 'autoBurstSimulation', 'updatedAt']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.refreshRateMs is number &&
+        data.depthLevels is number &&
+        (!('soundEnabled' in data) || data.soundEnabled is bool) &&
+        (!('autoBurstSimulation' in data) || data.autoBurstSimulation is bool);
+    }
+
+    // User Profile matching
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        incoming().userId == request.auth.uid &&
+        isValidUserProfile(incoming());
+      allow update: if (isOwner(userId) || isAdmin()) &&
+        isValidId(userId) &&
+        incoming().userId == existing().userId &&
+        isValidUserProfile(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'theme', 'preferredTicker', 'whaleThreshold', 'updatedAt']);
+      allow delete: if isOwner(userId) || isAdmin();
+
+      // Watchlist subcollection
+      match /watchlist/{symbol} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(symbol) &&
+          incoming().userId == request.auth.uid &&
+          isValidWatchlistItem(incoming());
+        allow update: if isOwner(userId) &&
+          isValidId(userId) &&
+          incoming().userId == existing().userId &&
+          isValidWatchlistItem(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      // Saved Trades subcollection
+      match /trades/{tradeId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(tradeId) &&
+          incoming().userId == request.auth.uid &&
+          isValidSavedTrade(incoming());
+        allow update: if false; // Trades are immutable audit records
+        allow delete: if isAdmin(); // Only compliance admin can prune
+      }
+
+      // Settings subcollection
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(settingId) &&
+          incoming().userId == request.auth.uid &&
+          isValidTerminalSetting(incoming());
+        allow update: if isOwner(userId) &&
+          isValidId(userId) &&
+          incoming().userId == existing().userId &&
+          isValidTerminalSetting(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Admin collection
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Test connection doc used to validate connection on boot
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
