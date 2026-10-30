@@ -24,6 +24,7 @@ import { SmartOrderRouter } from './components/SmartOrderRouter';
 import { MarketTimeMachine } from './components/MarketTimeMachine';
 import { HotkeyModal } from './components/HotkeyModal';
 import { QuantRAGStudio } from './components/QuantRAGStudio';
+import { PaperTradingDashboard } from './components/PaperTradingDashboard';
 import { audioEngine } from './utils/audioEngine';
 import { SidebarNavigation, NavTabId } from './components/SidebarNavigation';
 import { testConnection, auth } from './firebase';
@@ -284,6 +285,9 @@ export default function App() {
       } else if (key === 'R') {
         setActiveTab('rag');
         setHotkeyToast('🧠 View: Quant RAG Studio');
+      } else if (key === 'P') {
+        setActiveTab('paper');
+        setHotkeyToast('🛡️ View: Paper Trading Desk');
       } else if (e.key === '?') {
         e.preventDefault();
         setIsHotkeyModalOpen(prev => !prev);
@@ -412,6 +416,7 @@ export default function App() {
                 {activeTab === 'benchmark' && 'ZERO-COPY BENCHMARK & RING BUFFER'}
                 {activeTab === 'ledger' && 'AUDIT LEDGER & WRITE-AHEAD LOG (WAL)'}
                 {activeTab === 'firebase' && 'FIREBASE CLOUD VAULT & RECENT TRADES'}
+                {activeTab === 'paper' && 'PAPER TRADING CONTROL PLANE (SAFE MODE)'}
               </span>
             </div>
 
@@ -532,6 +537,8 @@ export default function App() {
         {activeTab === 'ledger' && <AuditLedgerView />}
 
         {activeTab === 'firebase' && <FirebaseSyncPanel recentTrades={recentTrades} />}
+
+        {activeTab === 'paper' && <PaperTradingDashboard />}
           </main>
         </div>
       </div>

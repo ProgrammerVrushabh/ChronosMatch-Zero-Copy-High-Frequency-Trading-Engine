@@ -21,7 +21,8 @@ import {
   Zap,
   ShieldCheck,
   Radio,
-  Brain
+  Brain,
+  WalletCards
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -36,7 +37,8 @@ export type NavTabId =
   | 'chat'
   | 'benchmark'
   | 'ledger'
-  | 'firebase';
+  | 'firebase'
+  | 'paper';
 
 interface NavItem {
   id: NavTabId;
@@ -90,6 +92,16 @@ const NAV_ITEMS: NavItem[] = [
     badge: 'NBBO 4X',
     category: 'EXECUTION',
     color: 'text-cyan-400'
+  },
+  {
+    id: 'paper',
+    label: 'Paper Trading Desk',
+    shortLabel: 'Paper Trading',
+    icon: WalletCards,
+    hotkey: 'P',
+    badge: 'SAFE MODE',
+    category: 'EXECUTION',
+    color: 'text-emerald-400'
   },
 
   // Category 2: Simulation & Spatial

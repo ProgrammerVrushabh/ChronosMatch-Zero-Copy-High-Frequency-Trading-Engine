@@ -84,6 +84,19 @@ Open the application at:
 http://localhost:3000
 ```
 
+### Paper trading
+
+The **Paper Trading Desk** is a simulation-only account for validating execution
+ideas against the live simulated quote. It starts with a virtual $100,000
+balance, tracks positions and realized/unrealized P&L, persists orders under
+the server runtime directory, and enforces order-size, notional, position, and
+daily-loss limits. The kill switch cancels open paper orders and blocks new
+submissions.
+
+Paper orders are intentionally isolated from the Python matching engine and
+from all broker/exchange integrations. They never represent real-money
+execution. Resetting the desk clears its virtual account and order history.
+
 If port 3000 is already being used, the server automatically tries the next
 available port and prints the actual URL in the terminal.
 

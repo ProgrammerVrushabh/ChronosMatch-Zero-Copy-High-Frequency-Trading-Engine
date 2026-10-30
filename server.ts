@@ -13,6 +13,7 @@ import {
   searchKnowledgeBase,
   buildRAGContext
 } from './src/rag/knowledgeStore';
+import { PaperQuote, PaperTradingStore } from './paperTrading';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -131,6 +132,20 @@ function listenOnAvailablePort(port: number): void {
 let pythonProcess: ChildProcess | null = null;
 let latestTelemetry: any = null;
 const sseClients: Set<express.Response> = new Set();
+const paperTrading = new PaperTradingStore(runtimeDir);
+
+function getPaperQuote(symbol: string): PaperQuote | undefined {
+  const telemetrySymbol = normalizeSymbol(latestTelemetry?.symbol, '');
+  if (telemetrySymbol !== symbol || !latestTelemetry?.bids?.[0] || !latestTelemetry?.asks?.[0]) {
+    return undefined;
+  }
+  const bid = Number(latestTelemetry.bids[0].price);
+  const ask = Number(latestTelemetry.asks[0].price);
+  const last = Number(latestTelemetry.recent_trades?.[0]?.price || (bid + ask) / 2);
+  return Number.isFinite(bid) && Number.isFinite(ask) && Number.isFinite(last)
+    ? { symbol, bid, ask, last }
+    : undefined;
+}
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -289,6 +304,56 @@ app.post('/api/engine/command', (req, res) => {
     return res.status(503).json({ error: 'Engine command could not be sent' });
   }
   res.json({ status: 'command_sent', cmd });
+});
+
+app.get('/api/paper/state', (req, res) => {
+  const requestedSymbol = normalizeSymbol(req.query.symbol, normalizeSymbol(latestTelemetry?.symbol));
+  const quote = getPaperQuote(requestedSymbol);
+  res.json({
+    ...paperTrading.getState(quote ? { [requestedSymbol]: quote } : {}),
+    quote: quote || null
+  });
+});
+
+app.post('/api/paper/orders', (req, res) => {
+  const symbol = normalizeSymbol(req.body?.symbol, normalizeSymbol(latestTelemetry?.symbol));
+  const side = req.body?.side === 'SELL' ? 'SELL' : req.body?.side === 'BUY' ? 'BUY' : null;
+  const type = req.body?.type === 'LIMIT' ? 'LIMIT' : req.body?.type === 'MARKET' ? 'MARKET' : null;
+  const quantity = Number(req.body?.quantity);
+  const limitPrice = req.body?.limitPrice === undefined ? undefined : Number(req.body.limitPrice);
+  if (!side || !type || !Number.isInteger(quantity) || quantity < 1 || (limitPrice !== undefined && !Number.isFinite(limitPrice))) {
+    return res.status(400).json({ error: 'symbol, side, type, and positive integer quantity are required' });
+  }
+  const order = paperTrading.submitOrder({
+    symbol,
+    side,
+    type,
+    quantity,
+    limitPrice,
+    quote: getPaperQuote(symbol)
+  });
+  return res.status(order.status === 'REJECTED' ? 409 : 200).json({ order });
+});
+
+app.post('/api/paper/orders/:id/cancel', (req, res) => {
+  const order = paperTrading.cancelOrder(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Open paper order not found' });
+  return res.json({ order });
+});
+
+app.post('/api/paper/controls', (req, res) => {
+  if (typeof req.body?.killSwitch === 'boolean') {
+    paperTrading.setKillSwitch(req.body.killSwitch);
+  }
+  if (req.body?.limits && typeof req.body.limits === 'object') {
+    paperTrading.setLimits(req.body.limits);
+  }
+  return res.json({ state: paperTrading.getState({}) });
+});
+
+app.post('/api/paper/reset', (req, res) => {
+  paperTrading.reset();
+  return res.json({ state: paperTrading.getState({}) });
 });
 
 app.post('/api/benchmark/run', (req, res) => {
