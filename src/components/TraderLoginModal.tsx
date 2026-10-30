@@ -100,6 +100,10 @@ export const TraderLoginModal: React.FC<TraderLoginModalProps> = ({
       console.error('Google Sign-In error:', err);
       if (err.code === 'auth/popup-blocked') {
         setErrorMsg('Browser popup was blocked. Please use Instant Institutional Trader access below.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setErrorMsg(
+          `Google Login is not enabled for ${window.location.hostname}. Add this hostname to Firebase Console > Authentication > Settings > Authorized domains, then retry.`
+        );
       } else {
         setErrorMsg(err.message || 'Popup closed or blocked. Try Instant Trader Access.');
       }

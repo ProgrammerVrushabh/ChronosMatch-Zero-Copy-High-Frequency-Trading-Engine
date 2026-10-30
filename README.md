@@ -56,6 +56,14 @@ using a different Firebase project, replace that configuration with the
 configuration for your own project and configure the required Firebase
 Authentication and Firestore settings.
 
+To enable Google Login on a deployment, open Firebase Console for the
+configured project, go to **Authentication > Settings > Authorized domains**,
+and add the exact hostname shown in the browser address bar. For the current
+production deployment, add
+`chronosmatch-zero-copy-high-frequen.vercel.app` (and `localhost` for local
+development). Also enable the **Google** provider under
+**Authentication > Sign-in method**.
+
 ### 4. Start the development server
 
 Run:
