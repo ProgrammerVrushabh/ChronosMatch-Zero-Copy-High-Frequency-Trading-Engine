@@ -340,6 +340,33 @@ export default function App() {
   const whaleAlerts = telemetry?.whale_alerts || [];
   const midPrice = bids[0] && asks[0] ? (bids[0].price + asks[0].price) / 2 : 182.49;
 
+  const handleExportSnapshot = useCallback(() => {
+    const snapshot = {
+      exportedAt: new Date().toISOString(),
+      engine: {
+        running: isRunning,
+        pid,
+        targetRate,
+        burstMode
+      },
+      telemetry: telemetry || {
+        ingest_tps: 0,
+        match_tps: 0,
+        total_ingested: 0,
+        total_matched: 0
+      },
+      orderBook: { bids, asks },
+      recentTrades
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `chronosmatch-snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [asks, bids, burstMode, isRunning, pid, recentTrades, targetRate, telemetry]);
+
   return (
     <div
       className={`min-h-screen flex flex-col font-mono selection:bg-[#2a3444] selection:text-slate-100 transition-colors duration-200 ${
@@ -372,6 +399,7 @@ export default function App() {
         onReplaySplash={() => setShowSplash(true)}
         isAudioMuted={isAudioMuted}
         onToggleAudio={handleToggleAudio}
+        onExportSnapshot={handleExportSnapshot}
         onOpenHotkeys={() => setIsHotkeyModalOpen(true)}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
         onToggleDesktopSidebar={() => setIsSidebarCollapsed(prev => !prev)}
