@@ -4,34 +4,34 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Header } from './components/Header';
-import { OrderBookLadder } from './components/OrderBookLadder';
-import { LatencyGauge } from './components/LatencyGauge';
-import { TradeTape } from './components/TradeTape';
-import { WhaleBanner } from './components/WhaleBanner';
-import { BenchmarkView } from './components/BenchmarkView';
-import { AuditLedgerView } from './components/AuditLedgerView';
-import { OrderInjectorModal } from './components/OrderInjectorModal';
-import { FirebaseSyncPanel } from './components/FirebaseSyncPanel';
-import { ThreeDTradingFloor } from './components/ThreeDTradingFloor';
-import { GeminiChatbot } from './components/GeminiChatbot';
-import { GeminiFloatingChat } from './components/GeminiFloatingChat';
-import { ChronosOpeningSplash } from './components/ChronosOpeningSplash';
-import { TraderLoginModal } from './components/TraderLoginModal';
-import { OrderFlowHeatmap } from './components/OrderFlowHeatmap';
-import { AlgoExecutionStudio } from './components/AlgoExecutionStudio';
-import { SmartOrderRouter } from './components/SmartOrderRouter';
-import { MarketTimeMachine } from './components/MarketTimeMachine';
-import { HotkeyModal } from './components/HotkeyModal';
-import { QuantRAGStudio } from './components/QuantRAGStudio';
-import { PaperTradingDashboard } from './components/PaperTradingDashboard';
-import { ReliabilityCenter } from './components/ReliabilityCenter';
-import { audioEngine } from './utils/audioEngine';
-import { MobileTabBar, SidebarNavigation, NavTabId } from './components/SidebarNavigation';
-import { testConnection, auth } from './firebase';
+import { Header } from './Header';
+import { OrderBookLadder } from './OrderBookLadder';
+import { LatencyGauge } from './LatencyGauge';
+import { TradeTape } from './TradeTape';
+import { WhaleBanner } from './WhaleBanner';
+import { BenchmarkView } from './BenchmarkView';
+import { AuditLedgerView } from './AuditLedgerView';
+import { OrderInjectorModal } from './OrderInjectorModal';
+import { FirebaseSyncPanel } from './FirebaseSyncPanel';
+import { ThreeDTradingFloor } from './ThreeDTradingFloor';
+import { GeminiChatbot } from './GeminiChatbot';
+import { GeminiFloatingChat } from './GeminiFloatingChat';
+import { ChronosOpeningSplash } from './ChronosOpeningSplash';
+import { TraderLoginModal } from './TraderLoginModal';
+import { OrderFlowHeatmap } from './OrderFlowHeatmap';
+import { AlgoExecutionStudio } from './AlgoExecutionStudio';
+import { SmartOrderRouter } from './SmartOrderRouter';
+import { MarketTimeMachine } from './MarketTimeMachine';
+import { HotkeyModal } from './HotkeyModal';
+import { QuantRAGStudio } from './QuantRAGStudio';
+import { PaperTradingDashboard } from './PaperTradingDashboard';
+import { ReliabilityCenter } from './ReliabilityCenter';
+import { audioEngine } from '../utils/audioEngine';
+import { MobileTabBar, SidebarNavigation, NavTabId } from './SidebarNavigation';
+import { testConnection, auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { useTheme } from './context/ThemeContext';
-import { apiFetch, apiUrl, publicApiFetch } from './api';
+import { useTheme } from '../context/ThemeContext';
+import { apiFetch, apiUrl, publicApiFetch } from '../api';
 import {
   Layers,
   Activity,
