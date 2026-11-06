@@ -18,6 +18,7 @@ import {
   Download
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { Tooltip } from './Tooltip';
 
 interface HeaderProps {
   isRunning: boolean;
@@ -84,24 +85,28 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-2">
             {/* Mobile Sidebar Hamburger Toggle */}
             {onToggleMobileSidebar && (
-              <button
-                onClick={onToggleMobileSidebar}
-                className="md:hidden p-2 rounded-lg border border-[#2a2e39] bg-[#1c2030] text-[#8ca0b4] hover:text-slate-100 transition"
-                title="Toggle Segments Sidebar Menu"
-              >
-                <Menu className="w-4 h-4" />
-              </button>
+              <Tooltip content="Toggle segments sidebar menu">
+                <button
+                  onClick={onToggleMobileSidebar}
+                  aria-label="Toggle segments sidebar menu"
+                  className="md:hidden p-2 rounded-lg border border-[#2a2e39] bg-[#1c2030] text-[#8ca0b4] hover:text-slate-100 transition"
+                >
+                  <Menu className="w-4 h-4" />
+                </button>
+              </Tooltip>
             )}
 
             {/* Desktop Sidebar Rail Toggle */}
             {onToggleDesktopSidebar && (
-              <button
-                onClick={onToggleDesktopSidebar}
-                className="hidden md:flex p-2 rounded-lg border border-[#2a2e39] bg-[#1c2030] text-[#8ca0b4] hover:text-slate-100 hover:bg-[#232a3c] transition"
-                title={isDesktopSidebarCollapsed ? "Expand Sidebar Panel" : "Collapse Sidebar Panel"}
-              >
-                <PanelLeft className="w-4 h-4" />
-              </button>
+              <Tooltip content={isDesktopSidebarCollapsed ? 'Expand sidebar panel' : 'Collapse sidebar panel'}>
+                <button
+                  onClick={onToggleDesktopSidebar}
+                  aria-label={isDesktopSidebarCollapsed ? 'Expand sidebar panel' : 'Collapse sidebar panel'}
+                  className="hidden md:flex p-2 rounded-lg border border-[#2a2e39] bg-[#1c2030] text-[#8ca0b4] hover:text-slate-100 hover:bg-[#232a3c] transition"
+                >
+                  <PanelLeft className="w-4 h-4" />
+                </button>
+              </Tooltip>
             )}
 
             <div
@@ -253,21 +258,23 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Earnings Shockwave Button */}
-          <button
-            onClick={onToggleBurst}
-            className={`flex h-[32px] w-[116px] shrink-0 items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded text-[11px] sm:text-xs font-semibold tracking-wide border transition-all ${
-              burstMode
-                ? 'bg-rose-900/60 text-rose-200 border-rose-700 animate-pulse'
-                : isDark
-                ? 'bg-[#1c2030] text-[#a87474] border-[#3a2828] hover:bg-[#251d1d]'
-                : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
-            }`}
-            title="Surges market order inflow mimicking an Earnings Announcement volatility burst"
-          >
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline">{burstMode ? 'SHOCK ACTIVE' : 'EARNINGS SHOCK'}</span>
-            <span className="sm:hidden">SHOCK</span>
-          </button>
+          <Tooltip content="Surges market order inflow to mimic an earnings-announcement volatility burst" placement="top">
+            <button
+              onClick={onToggleBurst}
+              aria-label="Toggle earnings shockwave"
+              className={`flex h-[32px] w-[116px] shrink-0 items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded text-[11px] sm:text-xs font-semibold tracking-wide border transition-all ${
+                burstMode
+                  ? 'bg-rose-900/60 text-rose-200 border-rose-700 animate-pulse'
+                  : isDark
+                  ? 'bg-[#1c2030] text-[#a87474] border-[#3a2828] hover:bg-[#251d1d]'
+                  : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">{burstMode ? 'SHOCK ACTIVE' : 'EARNINGS SHOCK'}</span>
+              <span className="sm:hidden">SHOCK</span>
+            </button>
+          </Tooltip>
 
           {/* Inject Whale Sweep Button */}
           <button

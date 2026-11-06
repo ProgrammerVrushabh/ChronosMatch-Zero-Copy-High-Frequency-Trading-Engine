@@ -82,3 +82,49 @@ html.light ::-webkit-scrollbar-thumb:hover {
 .animate-whale {
   animation: whale-glow 2s infinite ease-in-out;
 }
+
+/* Keyboard-accessible tooltips for dense terminal controls. */
+.chronos-tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.chronos-tooltip-bubble {
+  position: fixed;
+  z-index: 80;
+  width: max-content;
+  max-width: 260px;
+  padding: 7px 9px;
+  border: 1px solid #3b4254;
+  border-radius: 6px;
+  background: #1c2436;
+  color: #dbe5ef;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  animation: tooltip-fade-in 140ms ease forwards;
+  white-space: normal;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 28%);
+}
+
+.chronos-tooltip-top {
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+@keyframes tooltip-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+html.light .chronos-tooltip-bubble {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 14%);
+}
