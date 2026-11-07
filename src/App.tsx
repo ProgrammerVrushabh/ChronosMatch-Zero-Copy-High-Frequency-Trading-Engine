@@ -3,7 +3,7 @@
  * Web Terminal & Quantitative Telemetry Control Plane
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { OrderBookLadder } from './components/OrderBookLadder';
 import { LatencyGauge } from './components/LatencyGauge';
@@ -56,11 +56,45 @@ import {
 
 export default function App() {
   const { isDark } = useTheme();
+  const cursorGlowRef = useRef<HTMLDivElement>(null);
   // Dynamic opening animation screen always displays on initial application load
   const [showSplash, setShowSplash] = useState(true);
 
   const handleSplashComplete = useCallback(() => {
     setShowSplash(false);
+  }, []);
+
+  useEffect(() => {
+    const glow = cursorGlowRef.current;
+    if (!glow || !window.matchMedia('(pointer: fine)').matches) {
+      return;
+    }
+
+    let frame = 0;
+    let pointerX = -200;
+    let pointerY = -200;
+
+    const renderGlow = () => {
+      glow.style.setProperty('--cursor-x', `${pointerX}px`);
+      glow.style.setProperty('--cursor-y', `${pointerY}px`);
+      frame = 0;
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      if (!frame) {
+        frame = window.requestAnimationFrame(renderGlow);
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
   }, []);
 
   const [activeTab, setActiveTab] = useState<NavTabId>('trading');
@@ -369,10 +403,12 @@ export default function App() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-mono selection:bg-[#2a3444] selection:text-slate-100 transition-colors duration-200 ${
+      className={`relative min-h-screen flex flex-col font-mono selection:bg-[#2a3444] selection:text-slate-100 transition-colors duration-200 ${
         isDark ? 'bg-[#131722] text-[#d1d5db]' : 'bg-[#f4f6f9] text-[#1e293b]'
       }`}
     >
+      <div ref={cursorGlowRef} className="cursor-glow" aria-hidden="true" />
+
       {/* Dynamic Opening Animation while loading application */}
       {showSplash && (
         <ChronosOpeningSplash
