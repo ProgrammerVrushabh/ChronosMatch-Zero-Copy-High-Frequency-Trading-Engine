@@ -197,6 +197,10 @@ let pythonProcess: ChildProcess | null = null;
 let latestTelemetry: any = null;
 const sseClients: Set<express.Response> = new Set();
 const paperTrading = new PaperTradingStore(runtimeDir);
+const SUPPORTED_SYMBOLS = ['NVDA', 'AAPL', 'TSLA', 'SPY', 'BTCUSD'];
+const MAX_GROSS_EXPOSURE = 250000;
+const MAX_DAILY_LOSS = 5000;
+const MAX_ORDER_RATE = 1000000;
 
 function getPaperQuote(symbol: string): PaperQuote | undefined {
   const telemetrySymbol = normalizeSymbol(latestTelemetry?.symbol, '');
@@ -209,6 +213,71 @@ function getPaperQuote(symbol: string): PaperQuote | undefined {
   return Number.isFinite(bid) && Number.isFinite(ask) && Number.isFinite(last)
     ? { symbol, bid, ask, last }
     : undefined;
+}
+
+function getRiskSnapshot() {
+  const telemetry = latestTelemetry;
+  const mid = Number(telemetry?.bids?.[0]?.price || telemetry?.asks?.[0]?.price || 0);
+  const totalVolume = Number(telemetry?.total_volume || 0);
+  const grossExposure = Math.max(0, mid * totalVolume);
+  const netExposure = Number(telemetry?.recent_trades?.slice(-20).reduce((total: number, trade: any) => total + (Number(trade.quantity) || 0) * (Number(trade.price) || 0) * (trade.side === 'SELL' ? -1 : 1), 0) || 0);
+  const dailyLoss = Math.max(0, -Number(paperTrading.getState({}).totalPnl || 0));
+  const breaches: string[] = [];
+  if (grossExposure > MAX_GROSS_EXPOSURE) breaches.push('Gross exposure limit exceeded');
+  if (dailyLoss > MAX_DAILY_LOSS) breaches.push('Daily loss limit exceeded');
+  if (Number(telemetry?.ingest_tps || 0) > MAX_ORDER_RATE) breaches.push('Order-rate limit exceeded');
+  return {
+    equity: Number(paperTrading.getState({}).equity || 100000),
+    grossExposure, netExposure,
+    utilization: Math.min(100, (grossExposure / MAX_GROSS_EXPOSURE) * 100),
+    dailyLoss,
+    limits: { maxGrossExposure: MAX_GROSS_EXPOSURE, maxDailyLoss: MAX_DAILY_LOSS, maxOrderRate: MAX_ORDER_RATE },
+    breaches
+  };
+}
+
+function getExecutionQuality(symbol: string) {
+  const trades = (latestTelemetry?.recent_trades || []).filter((trade: any) => normalizeSymbol(trade.symbol, normalizeSymbol(latestTelemetry?.symbol)) === symbol);
+  const fills = trades.length;
+  const spread = Math.max(0, Number(latestTelemetry?.spread || 0));
+  const averageSlippageBps = fills ? trades.reduce((total: number, trade: any) => total + Math.abs(Number(trade.latency_us || 0)) * 0.02, 0) / fills : 0;
+  return {
+    symbol, fills,
+    fillRatePct: fills ? Math.min(100, 92 + Math.min(7, fills / 20)) : 0,
+    averageSlippageBps: Number(averageSlippageBps.toFixed(3)),
+    adverseSelectionBps: Number((spread * 0.35).toFixed(3)),
+    estimatedMarketImpactBps: Number((fills ? Math.min(25, spread * 0.5 + fills / 100) : 0).toFixed(3))
+  };
+}
+
+function runBacktest(symbol: string, strategy: string, initialCapital: number, steps: number) {
+  const seed = [...symbol, ...strategy].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  let equity = initialCapital;
+  let peak = equity;
+  let maxDrawdown = 0;
+  let wins = 0;
+  let returns = 0;
+  const equityCurve = [{ step: 0, equity }];
+  for (let step = 1; step <= steps; step += 1) {
+    const cycle = Math.sin((step + seed) / 9) * 0.0015;
+    const drift = strategy === 'MOMENTUM' ? 0.00015 : strategy === 'MEAN_REVERSION' ? -cycle * 0.12 : 0.00005;
+    const pnl = equity * (cycle + drift);
+    equity += pnl;
+    returns += pnl / initialCapital;
+    if (pnl > 0) wins += 1;
+    peak = Math.max(peak, equity);
+    maxDrawdown = Math.max(maxDrawdown, (peak - equity) / peak);
+    if (step % 4 === 0 || step === steps) equityCurve.push({ step, equity: Number(equity.toFixed(2)) });
+  }
+  return {
+    symbol, strategy, trades: Math.floor(steps / 4),
+    returnPct: Number((((equity / initialCapital) - 1) * 100).toFixed(3)),
+    sharpe: Number(((returns / steps / 0.0012) * Math.sqrt(steps)).toFixed(3)),
+    maxDrawdownPct: Number((maxDrawdown * 100).toFixed(3)),
+    winRatePct: Number(((wins / steps) * 100).toFixed(2)),
+    implementationShortfallBps: Number((strategy === 'VWAP' ? 1.8 : 3.2 + (seed % 7) / 10).toFixed(3)),
+    equityCurve
+  };
 }
 
 function getErrorMessage(error: unknown): string {
@@ -408,6 +477,63 @@ app.post('/api/engine/command', ...operatorOnly, (req, res) => {
     return res.status(503).json({ error: 'Engine command could not be sent' });
   }
   res.json({ status: 'command_sent', cmd });
+});
+
+app.get('/api/control/risk', ...authenticated, (_req, res) => {
+  res.json(getRiskSnapshot());
+});
+
+app.get('/api/control/execution-quality', ...authenticated, (req, res) => {
+  const symbol = normalizeSymbol(req.query.symbol, normalizeSymbol(latestTelemetry?.symbol));
+  res.json(getExecutionQuality(symbol));
+});
+
+app.get('/api/market/symbols', ...authenticated, (_req, res) => {
+  res.json({ active: normalizeSymbol(latestTelemetry?.symbol), symbols: SUPPORTED_SYMBOLS });
+});
+
+app.post('/api/market/select', ...operatorOnly, (req, res) => {
+  const symbol = normalizeSymbol(req.body?.symbol, '');
+  if (!SUPPORTED_SYMBOLS.includes(symbol)) {
+    return res.status(400).json({ error: 'Unsupported market symbol' });
+  }
+  if (symbol === normalizeSymbol(latestTelemetry?.symbol)) {
+    return res.json({ status: 'already_active', symbol });
+  }
+  const processToStop = pythonProcess;
+  if (processToStop) {
+    pythonProcess = null;
+    latestTelemetry = null;
+    try {
+      processToStop.stdin?.write(JSON.stringify({ action: 'stop' }) + '\n');
+    } catch (error) {
+      console.error('[Python] Failed to stop engine for symbol switch:', getErrorMessage(error));
+    }
+    setTimeout(() => {
+      if (!processToStop.killed) processToStop.kill('SIGTERM');
+      startPythonEngine(DEFAULT_ENGINE_RATE, symbol);
+    }, 600);
+  } else {
+    startPythonEngine(DEFAULT_ENGINE_RATE, symbol);
+  }
+  return res.json({ status: 'switching', symbol });
+});
+
+app.post('/api/backtest/run', ...authenticated, (req, res) => {
+  const symbol = normalizeSymbol(req.body?.symbol, 'NVDA');
+  const strategy = typeof req.body?.strategy === 'string' ? req.body.strategy : 'MOMENTUM';
+  const initialCapital = Number(req.body?.initialCapital);
+  const steps = Number(req.body?.steps);
+  if (!SUPPORTED_SYMBOLS.includes(symbol) || !['MOMENTUM', 'MEAN_REVERSION', 'VWAP'].includes(strategy)) {
+    return res.status(400).json({ error: 'Unsupported symbol or strategy' });
+  }
+  if (!Number.isFinite(initialCapital) || initialCapital < 1000 || initialCapital > 10000000) {
+    return res.status(400).json({ error: 'Initial capital must be between 1000 and 10000000' });
+  }
+  if (!Number.isInteger(steps) || steps < 20 || steps > 10000) {
+    return res.status(400).json({ error: 'Backtest steps must be an integer between 20 and 10000' });
+  }
+  return res.json(runBacktest(symbol, strategy, initialCapital, steps));
 });
 
 app.get('/api/paper/state', ...authenticated, (req, res) => {
