@@ -1,0 +1,15 @@
+services:
+  chronosmatch:
+    build:
+      context: /opt/chronosmatch
+      dockerfile: Dockerfile
+    container_name: chronosmatch
+    restart: unless-stopped
+    ports:
+      - "80:10000"
+    env_file:
+      - /opt/chronosmatch/.env.production
+    environment:
+      NODE_ENV: production
+      PORT: 10000
+      CHRONOS_RUNTIME_DIR: /tmp/chronosmatch

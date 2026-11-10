@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #131722;
+    color: #d1d5db;
+    font-family: 'JetBrains Mono', monospace;
+    overflow-x: hidden;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.light body {
+    background-color: #f4f6f9;
+    color: #1e293b;
+  }
+}
+
+.cursor-glow {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 280px;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0.42;
+  transform: translate3d(
+    calc(var(--cursor-x, -200px) - 50%),
+    calc(var(--cursor-y, -200px) - 50%),
+    0
+  );
+  background: radial-gradient(
+    circle,
+    rgb(125 169 143 / 18%) 0%,
+    rgb(125 169 143 / 8%) 34%,
+    transparent 70%
+  );
+  filter: blur(14px);
+  transition: opacity 180ms ease;
+  will-change: transform;
+}
+
+html.light .cursor-glow {
+  background: radial-gradient(
+    circle,
+    rgb(91 126 108 / 14%) 0%,
+    rgb(91 126 108 / 6%) 34%,
+    transparent 70%
+  );
+}
+
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .cursor-glow {
+    display: none;
+  }
+}
+
+/* Institutional Terminal Scrollbars - Dark */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #131722;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2e39;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #363c4e;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Institutional Terminal Scrollbars - Light */
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Dynamic Chat Pop-Open Animation */
+@keyframes chatPopOpen {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Desaturated flash for active order executions */
+@keyframes flash-brick {
+  0%, 100% { background-color: rgba(185, 83, 83, 0.08); }
+  50% { background-color: rgba(185, 83, 83, 0.22); }
+}
+
+@keyframes flash-sage {
+  0%, 100% { background-color: rgba(91, 154, 120, 0.08); }
+  50% { background-color: rgba(91, 154, 120, 0.22); }
+}
+
+@keyframes whale-glow {
+  0%, 100% { border-color: rgba(180, 140, 70, 0.3); box-shadow: 0 0 10px rgba(180, 140, 70, 0.1); }
+  50% { border-color: rgba(180, 140, 70, 0.6); box-shadow: 0 0 16px rgba(180, 140, 70, 0.2); }
+}
+
+.animate-whale {
+  animation: whale-glow 2s infinite ease-in-out;
+}
+
+/* Keyboard-accessible tooltips for dense terminal controls. */
+.chronos-tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.chronos-tooltip-bubble {
+  position: fixed;
+  z-index: 80;
+  width: max-content;
+  max-width: 260px;
+  padding: 7px 9px;
+  border: 1px solid #3b4254;
+  border-radius: 6px;
+  background: #1c2436;
+  color: #dbe5ef;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  animation: tooltip-fade-in 140ms ease forwards;
+  white-space: normal;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 28%);
+}
+
+.chronos-tooltip-top {
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+@keyframes tooltip-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+html.light .chronos-tooltip-bubble {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 14%);
+}
