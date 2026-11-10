@@ -59,7 +59,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-3.5-flash-lite'>('gemini-2.5-flash');
   const [useSearchGrounding, setUseSearchGrounding] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -190,7 +190,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
             }`}
           >
             <span className="text-[#64748b] px-1 text-[10px]">Model:</span>
-            {(['gemini-2.5-flash', 'gemini-2.5-flash-lite'] as const).map(m => (
+            {(['gemini-2.5-flash', 'gemini-3.5-flash-lite'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => setSelectedModel(m)}
@@ -202,7 +202,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
                     : 'text-[#64748b] hover:text-slate-300'
                 }`}
               >
-                {m === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Flash Lite'}
+                {m === 'gemini-2.5-flash' ? '2.5 Flash' : '3.5 Flash Lite'}
               </button>
             ))}
           </div>
