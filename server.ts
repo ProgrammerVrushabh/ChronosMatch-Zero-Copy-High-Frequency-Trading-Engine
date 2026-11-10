@@ -30,7 +30,10 @@ const configuredPort = Number.parseInt(process.env.PORT || '3000', 10);
 const PORT = Number.isInteger(configuredPort) && configuredPort > 0 ? configuredPort : 3000;
 const DEFAULT_ENGINE_RATE = 25000;
 const MAX_BENCHMARK_COUNT = 1_000_000;
-const ALLOWED_GEMINI_MODELS = new Set(['gemini-3.8-flash', 'gemini-3.1-flash-lite']);
+const PRIMARY_GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+const FALLBACK_GEMINI_MODEL = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.5-flash-lite';
+const ALLOWED_GEMINI_MODELS = new Set([PRIMARY_GEMINI_MODEL, FALLBACK_GEMINI_MODEL]);
+const GEMINI_RETRY_DELAYS_MS = [400, 1_000];
 const defaultSystemInstruction = `You are Chronos AI, an elite Quantitative Analyst and Ultra-Low-Latency Systems Architect embedded within the ChronosMatch High-Frequency Trading Engine.
 You specialize in HFT, limit order books, zero-copy IPC, low-latency systems, market microstructure, and quantitative risk.
 Give precise, actionable engineering and trading insights.`;
@@ -131,6 +134,60 @@ function getGeminiClient(): GoogleGenAI {
     throw new Error('GEMINI_API_KEY is not configured. Add it to .env.local and restart the server.');
   }
   return ai;
+}
+
+function isTransientGeminiError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return message.includes('429') ||
+    message.includes('resource_exhausted') ||
+    message.includes('503') ||
+    message.includes('unavailable') ||
+    message.includes('high demand') ||
+    message.includes('overloaded') ||
+    message.includes('temporarily');
+}
+
+async function generateGeminiContent(
+  contents: Parameters<GoogleGenAI['models']['generateContent']>[0]['contents'],
+  config: Record<string, unknown>,
+  requestedModel: string
+): Promise<{ response: any; model: string }> {
+  const models = [requestedModel, FALLBACK_GEMINI_MODEL].filter(
+    (model, index, availableModels) => availableModels.indexOf(model) === index
+  );
+  let lastError: unknown;
+
+  for (const [modelIndex, model] of models.entries()) {
+    const modelConfig = model === FALLBACK_GEMINI_MODEL
+      ? { ...config, tools: undefined }
+      : config;
+    if (modelConfig.tools === undefined) {
+      delete modelConfig.tools;
+    }
+
+    for (let attempt = 0; attempt <= GEMINI_RETRY_DELAYS_MS.length; attempt += 1) {
+      try {
+        const response = await getGeminiClient().models.generateContent({
+          model,
+          contents,
+          config: modelConfig
+        });
+        return { response, model };
+      } catch (error) {
+        lastError = error;
+        if (!isTransientGeminiError(error) || attempt === GEMINI_RETRY_DELAYS_MS.length) {
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, GEMINI_RETRY_DELAYS_MS[attempt]));
+      }
+    }
+
+    if (modelIndex < models.length - 1) {
+      console.warn(`[Gemini] ${model} is unavailable; trying ${models[modelIndex + 1]}.`);
+    }
+  }
+
+  throw lastError || new Error('Gemini did not return a response.');
 }
 
 function getPythonCommand(): { command: string; args: string[] } {
@@ -683,7 +740,7 @@ app.post('/api/gemini/chat', async (req, res) => {
   try {
     const {
       messages,
-      model = 'gemini-3.8-flash',
+      model = PRIMARY_GEMINI_MODEL,
       useSearch = true
     } = req.body;
 
@@ -693,7 +750,7 @@ app.post('/api/gemini/chat', async (req, res) => {
     if (messages.length > 40 || messages.some((message: any) => !message || typeof message.content !== 'string' || message.content.length > 12_000)) {
       return res.status(400).json({ error: 'Messages exceed the allowed size' });
     }
-    const requestedModel = typeof model === 'string' && ALLOWED_GEMINI_MODELS.has(model) ? model : 'gemini-3.8-flash';
+    const requestedModel = typeof model === 'string' && ALLOWED_GEMINI_MODELS.has(model) ? model : PRIMARY_GEMINI_MODEL;
 
     const contents = messages.map((m: any) => ({
       role: m.role === 'assistant' ? 'model' : m.role,
@@ -708,38 +765,7 @@ app.post('/api/gemini/chat', async (req, res) => {
       config.tools = [{ googleSearch: {} }];
     }
 
-    let response;
-    let actualModel = requestedModel;
-    try {
-      response = await getGeminiClient().models.generateContent({
-        model: actualModel,
-        contents,
-        config
-      });
-    } catch (modelErr: any) {
-      const errMsg = String(modelErr?.message || '');
-      if (
-        actualModel !== 'gemini-3.1-flash-lite' &&
-        (errMsg.includes('429') ||
-          errMsg.includes('RESOURCE_EXHAUSTED') ||
-          errMsg.includes('503') ||
-          errMsg.includes('UNAVAILABLE') ||
-          errMsg.includes('high demand') ||
-          errMsg.includes('overloaded'))
-      ) {
-        console.warn(`[Gemini] ${actualModel} hit capacity or error (${errMsg}). Gracefully falling back to gemini-3.1-flash-lite`);
-        actualModel = 'gemini-3.1-flash-lite';
-        const fallbackConfig = { ...config };
-        delete fallbackConfig.tools; // gemini-3.1-flash-lite does not support search tools
-        response = await getGeminiClient().models.generateContent({
-          model: actualModel,
-          contents,
-          config: fallbackConfig
-        });
-      } else {
-        throw modelErr;
-      }
-    }
+    const { response, model: actualModel } = await generateGeminiContent(contents, config, requestedModel);
 
     let text = response.text || '';
     if (!text && response.candidates?.[0]?.content?.parts) {
@@ -757,9 +783,12 @@ app.post('/api/gemini/chat', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Gemini API error:', error);
-    res.status(500).json({
-      error: error?.message || 'Failed to generate response from Gemini API',
-      details: String(error)
+    const transient = isTransientGeminiError(error);
+    res.status(transient ? 503 : 500).json({
+      error: transient
+        ? 'Gemini is temporarily at capacity. Please try again in a moment.'
+        : error?.message || 'Failed to generate response from Gemini API',
+      retryable: transient
     });
   }
 });
@@ -804,7 +833,7 @@ app.post('/api/rag/query', ...authenticated, async (req, res) => {
       query,
       topK = 3,
       includeTelemetry = true,
-      model = 'gemini-3.8-flash'
+      model = PRIMARY_GEMINI_MODEL
     } = req.body;
 
     if (!query || typeof query !== 'string') {
@@ -813,7 +842,7 @@ app.post('/api/rag/query', ...authenticated, async (req, res) => {
     if (query.length > 8_000) {
       return res.status(400).json({ error: 'Query exceeds the allowed size' });
     }
-    const requestedModel = typeof model === 'string' && ALLOWED_GEMINI_MODELS.has(model) ? model : 'gemini-3.8-flash';
+    const requestedModel = typeof model === 'string' && ALLOWED_GEMINI_MODELS.has(model) ? model : PRIMARY_GEMINI_MODEL;
 
     // 1. Semantic Retrieval across Knowledge Base
     const retrievals = searchKnowledgeBase(query, Math.min(6, Math.max(1, topK)));
@@ -845,29 +874,11 @@ GROUNDING RULES:
       }
     ];
 
-    let response;
-    let actualModel = requestedModel;
-    try {
-      response = await getGeminiClient().models.generateContent({
-        model: actualModel,
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.2
-        }
-      });
-    } catch (modelErr: any) {
-      console.warn(`[RAG Gemini] Fallback to gemini-3.1-flash-lite due to:`, modelErr?.message);
-      actualModel = 'gemini-3.1-flash-lite';
-      response = await getGeminiClient().models.generateContent({
-        model: actualModel,
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.2
-        }
-      });
-    }
+    const { response, model: actualModel } = await generateGeminiContent(
+      contents,
+      { systemInstruction, temperature: 0.2 },
+      requestedModel
+    );
 
     let answer = response.text || '';
     if (!answer && response.candidates?.[0]?.content?.parts) {

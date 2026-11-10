@@ -77,6 +77,11 @@ export const ReliabilityCenter: React.FC = () => {
 
   const allHealthy = healthChecks.every(check => check.ok);
   const telemetry = status?.latestTelemetry;
+  const alerts = [
+    (telemetry?.buffer?.dropped ?? 0) > 0 ? `Ring buffer dropped ${formatNumber(telemetry?.buffer?.dropped)} messages` : null,
+    (telemetry as any)?.p99_9_us > 100 ? `Tail latency exceeded 100µs (${Number((telemetry as any).p99_9_us).toFixed(1)}µs)` : null,
+    telemetry && (telemetry.ingest_tps ?? 0) > 0 && (telemetry.match_tps ?? 0) < (telemetry.ingest_tps ?? 0) * 0.9 ? 'Matching throughput is trailing ingestion rate' : null
+  ].filter((alert): alert is string => !!alert);
 
   return (
     <div className="space-y-4 font-mono">
@@ -134,6 +139,17 @@ export const ReliabilityCenter: React.FC = () => {
             <div className="mt-2 text-xl font-bold text-slate-100">{value}</div>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-lg border border-[#2a2e39] bg-[#1c2030] p-4">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-100 uppercase">
+          <CircleAlert className="h-4 w-4 text-amber-300" /> Active observability alerts
+        </div>
+        {alerts.length ? (
+          <ul className="mt-3 space-y-2 text-[11px] text-amber-200">{alerts.map(alert => <li key={alert} className="rounded border border-amber-800/50 bg-amber-950/20 px-3 py-2">{alert}</li>)}</ul>
+        ) : (
+          <p className="mt-3 text-[11px] text-emerald-300">No active latency, throughput, or ring-buffer alerts.</p>
+        )}
       </div>
 
       <div className="rounded-lg border border-[#2a2e39] bg-[#1c2030] p-4">

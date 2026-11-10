@@ -60,7 +60,7 @@ export const GeminiFloatingChat: React.FC<GeminiFloatingChatProps> = ({
   };
 
   const [isExpanded, setIsExpanded] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite' | 'gemini-4-argon'>('gemini-3.8-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>('gemini-2.5-flash');
   const [useSearchGrounding, setUseSearchGrounding] = useState(true);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -340,7 +340,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
           >
             <div className="flex items-center gap-1">
               <span className="text-slate-400">Model:</span>
-              {(['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-argon'] as const).map(m => (
+              {(['gemini-2.5-flash', 'gemini-2.5-flash-lite'] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => setSelectedModel(m)}
@@ -352,7 +352,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {m === 'gemini-3.8-flash' ? '3.8 Flash' : m === 'gemini-3.1-flash-lite' ? '3.1 Lite' : '4 Argon'}
+                  {m === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Flash Lite'}
                 </button>
               ))}
             </div>

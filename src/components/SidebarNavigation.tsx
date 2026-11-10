@@ -22,7 +22,8 @@ import {
   ShieldCheck,
   Radio,
   Brain,
-  WalletCards
+  WalletCards,
+  LineChart
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -39,7 +40,8 @@ export type NavTabId =
   | 'ledger'
   | 'firebase'
   | 'paper'
-  | 'reliability';
+  | 'reliability'
+  | 'risk';
 
 interface NavItem {
   id: NavTabId;
@@ -187,6 +189,16 @@ const NAV_ITEMS: NavItem[] = [
     badge: 'HEALTH',
     category: 'INFRASTRUCTURE',
     color: 'text-rose-400'
+  },
+  {
+    id: 'risk',
+    label: 'Risk & Research Control Plane',
+    shortLabel: 'Risk & Research',
+    icon: LineChart,
+    hotkey: 'Q',
+    badge: 'BACKTEST',
+    category: 'INFRASTRUCTURE',
+    color: 'text-cyan-400'
   }
 ];
 

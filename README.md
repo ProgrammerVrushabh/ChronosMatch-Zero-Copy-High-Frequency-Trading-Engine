@@ -240,6 +240,10 @@ The rest of the application can still start without this key, but Gemini
 chat and RAG requests return an explanatory HTTP 503 response until the key
 is configured.
 
+The chatbot uses `gemini-2.5-flash` by default, retries transient capacity
+errors, and falls back to `gemini-2.5-flash-lite`. Override these with
+`GEMINI_MODEL` and `GEMINI_FALLBACK_MODEL` in `.env.local` if needed.
+
 ### Python engine does not start
 
 Verify the Python installation:

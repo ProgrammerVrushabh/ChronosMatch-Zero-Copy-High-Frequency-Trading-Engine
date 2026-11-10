@@ -26,6 +26,7 @@ import { HotkeyModal } from './components/HotkeyModal';
 import { QuantRAGStudio } from './components/QuantRAGStudio';
 import { PaperTradingDashboard } from './components/PaperTradingDashboard';
 import { ReliabilityCenter } from './components/ReliabilityCenter';
+import { RiskResearchControlPlane } from './components/RiskResearchControlPlane';
 import { audioEngine } from './utils/audioEngine';
 import { MobileTabBar, SidebarNavigation, NavTabId } from './components/SidebarNavigation';
 import { testConnection, auth } from './firebase';
@@ -497,6 +498,7 @@ export default function App() {
                 {activeTab === 'firebase' && 'FIREBASE CLOUD VAULT & RECENT TRADES'}
                 {activeTab === 'paper' && 'PAPER TRADING CONTROL PLANE (SAFE MODE)'}
                 {activeTab === 'reliability' && 'RELIABILITY CENTER & ENGINE RECOVERY'}
+                {activeTab === 'risk' && 'RISK MANAGEMENT & BACKTEST RESEARCH'}
               </span>
             </div>
 
@@ -621,6 +623,7 @@ export default function App() {
         {activeTab === 'paper' && <PaperTradingDashboard />}
 
         {activeTab === 'reliability' && <ReliabilityCenter />}
+        {activeTab === 'risk' && <RiskResearchControlPlane />}
           </main>
         </div>
       </div>
