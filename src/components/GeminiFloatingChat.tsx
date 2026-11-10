@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  MessageSquare,
   X,
   Minimize2,
   Maximize2,
@@ -13,14 +12,11 @@ import {
   RotateCcw,
   Copy,
   Check,
-  ChevronDown,
-  Cpu,
-  Zap,
-  TrendingUp,
-  AlertCircle
+  Database
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { publicApiFetch } from '../api';
+import { FormattedAIResponse } from '../utils/markdownRenderer';
 
 interface ChatMessage {
   id: string;
@@ -33,6 +29,12 @@ interface ChatMessage {
       title: string;
     };
   }[];
+  retrievedChunks?: {
+    id: string;
+    title: string;
+    category: string;
+    relevancePct: number;
+  }[];
   modelUsed?: string;
 }
 
@@ -42,6 +44,7 @@ interface GeminiFloatingChatProps {
   currentTps?: number;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  hideLauncher?: boolean;
 }
 
 export const GeminiFloatingChat: React.FC<GeminiFloatingChatProps> = ({
@@ -49,7 +52,8 @@ export const GeminiFloatingChat: React.FC<GeminiFloatingChatProps> = ({
   currentSpread = 0.02,
   currentTps = 24800,
   isOpen: controlledIsOpen,
-  onOpenChange
+  onOpenChange,
+  hideLauncher = false
 }) => {
   const { isDark } = useTheme();
   const [internalIsOpen, setInternalIsOpen] = useState(false);
@@ -60,7 +64,7 @@ export const GeminiFloatingChat: React.FC<GeminiFloatingChatProps> = ({
   };
 
   const [isExpanded, setIsExpanded] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-3.5-flash-lite'>('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite'>('gemini-3.8-flash');
   const [useSearchGrounding, setUseSearchGrounding] = useState(true);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,8 +77,9 @@ export const GeminiFloatingChat: React.FC<GeminiFloatingChatProps> = ({
       role: 'assistant',
       content: `Hello! I am **Chronos AI**, your Quant Advisor and Ultra-Low-Latency Systems Architect.
       
-I am connected live to **${currentSymbol}** order book telemetry and backed by **Google Search Grounding**. Ask me about real-time market catalysts, liquidity sweeps, or zero-copy C-struct matching!`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+I am connected live to **${currentSymbol}** order book telemetry and backed by **Google Search Grounding** and the **Chronos Quant RAG Corpus**. Ask me about real-time market catalysts, liquidity sweeps, or zero-copy C-struct matching!`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      modelUsed: 'gemini-3.8-flash'
     }
   ]);
 
@@ -121,7 +126,10 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
         body: JSON.stringify({
           messages: historyPayload,
           model: selectedModel,
-          useSearch: useSearchGrounding
+          useSearch: useSearchGrounding,
+          symbol: currentSymbol,
+          spread: currentSpread,
+          tps: currentTps
         })
       });
 
@@ -136,6 +144,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
         content: data.text || 'No response returned.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         groundingChunks: data.groundingChunks || [],
+        retrievedChunks: data.retrievedChunks || [],
         modelUsed: data.model || selectedModel
       };
 
@@ -148,7 +157,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: `**Transmission Error**: ${err?.message || 'Could not connect to Gemini API. Check network or server logs.'}`,
+        content: `**Transmission Error**: ${err?.message || 'Could not connect to Chronos AI. Check network or server logs.'}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -169,7 +178,8 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
         id: `welcome-${Date.now()}`,
         role: 'assistant',
         content: `Conversation reset. Ready for your quant trading & kernel architecture questions on **${currentSymbol}**.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelUsed: selectedModel
       }
     ]);
   };
@@ -181,13 +191,18 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
     `What causes CPU cache-line bouncing in high-rate LOBs?`
   ];
 
+  if (hideLauncher && !isOpen) {
+    return null;
+  }
+
   return (
     <div className="fixed bottom-4 right-4 z-50 font-mono">
       {/* Floating Launcher Button when closed */}
       {!isOpen && (
         <button
+          type="button"
           onClick={() => setIsOpen(true)}
-          className={`group relative flex items-center gap-2.5 px-4 py-3 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${
+          className={`group relative flex items-center gap-2.5 px-4 py-3 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer ${
             isDark
               ? 'bg-[#1c2030] hover:bg-[#252c42] text-slate-100 border border-[#3b455c]'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-slate-300/50'
@@ -210,6 +225,11 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
               <span className="text-[9px] px-1 py-0.2 rounded bg-[#7da98f]/20 text-[#7da98f] font-mono">
                 GROUNDED
               </span>
+              {hasUnread && (
+                <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500 text-slate-950 font-bold">
+                  NEW
+                </span>
+              )}
             </div>
             <span className="text-[10px] text-slate-400">Ask Quant & Market News</span>
           </div>
@@ -224,7 +244,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
           className={`flex flex-col transition-all duration-300 ease-out shadow-2xl rounded-2xl overflow-hidden border ${
             isExpanded
               ? 'fixed inset-3 sm:inset-10 z-50 max-w-none max-h-none'
-              : 'w-[calc(100vw-32px)] sm:w-[460px] h-[580px] max-h-[calc(100vh-80px)]'
+              : 'w-[calc(100vw-32px)] sm:w-[480px] h-[600px] max-h-[calc(100vh-80px)]'
           } ${
             isDark
               ? 'bg-[#181c28] border-[#2f374a] text-slate-200'
@@ -275,6 +295,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
             <div className="flex items-center gap-1">
               {/* Grounding toggle */}
               <button
+                type="button"
                 onClick={() => setUseSearchGrounding(!useSearchGrounding)}
                 className={`px-2 py-1 rounded text-[10px] font-semibold border flex items-center gap-1 transition ${
                   useSearchGrounding
@@ -293,6 +314,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
 
               {/* Reset History */}
               <button
+                type="button"
                 onClick={handleClearHistory}
                 className={`p-1.5 rounded transition ${
                   isDark
@@ -306,6 +328,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
 
               {/* Expand / Minimize */}
               <button
+                type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
                 className={`p-1.5 rounded hidden sm:inline-flex transition ${
                   isDark
@@ -319,6 +342,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
 
               {/* Close Window */}
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
                 className={`p-1.5 rounded transition ${
                   isDark
@@ -340,9 +364,10 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
           >
             <div className="flex items-center gap-1">
               <span className="text-slate-400">Model:</span>
-              {(['gemini-2.5-flash', 'gemini-3.5-flash-lite'] as const).map(m => (
+              {(['gemini-3.8-flash', 'gemini-3.1-flash-lite'] as const).map(m => (
                 <button
                   key={m}
+                  type="button"
                   onClick={() => setSelectedModel(m)}
                   className={`px-1.5 py-0.5 rounded transition ${
                     selectedModel === m
@@ -352,7 +377,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {m === 'gemini-2.5-flash' ? '2.5 Flash' : '3.5 Flash Lite'}
+                  {m === 'gemini-3.8-flash' ? '3.8 Flash' : '3.1 Flash Lite'}
                 </button>
               ))}
             </div>
@@ -388,7 +413,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
                     {isUser ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
                   </div>
 
-                  <div className="space-y-1.5 min-w-0">
+                  <div className="space-y-1.5 min-w-0 flex-1">
                     <div
                       className={`rounded-xl p-3 text-xs leading-relaxed border ${
                         isUser
@@ -400,9 +425,37 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
                           : 'bg-slate-50 border-slate-200 text-slate-800'
                       }`}
                     >
-                      <div className="whitespace-pre-wrap font-sans text-xs">
-                        {m.content}
+                      <div className="font-sans text-xs">
+                        <FormattedAIResponse content={m.content} isDark={isUser ? true : isDark} />
                       </div>
+
+                      {/* Retrieved Quant RAG Sources */}
+                      {m.retrievedChunks && m.retrievedChunks.length > 0 && (
+                        <div
+                          className={`mt-2.5 pt-2 border-t text-[10px] space-y-1 ${
+                            isDark ? 'border-[#242938]' : 'border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1 font-semibold text-slate-400">
+                            <Database className="w-3 h-3 text-violet-400" />
+                            <span>Quant RAG Citations:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {m.retrievedChunks.map((rc) => (
+                              <span
+                                key={rc.id}
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-mono border ${
+                                  isDark
+                                    ? 'bg-[#1c2233] text-violet-300 border-[#2e374f]'
+                                    : 'bg-violet-50 text-violet-800 border-violet-200'
+                                }`}
+                              >
+                                {rc.title} ({rc.relevancePct}%)
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Google Search Grounding Sources */}
                       {m.groundingChunks && m.groundingChunks.length > 0 && (
@@ -431,7 +484,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
                                   }`}
                                 >
                                   <span className="truncate max-w-[150px]">
-                                    {chunk.web.title || new URL(chunk.web.uri).hostname}
+                                    {chunk.web.title || chunk.web.uri}
                                   </span>
                                   <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                                 </a>
@@ -447,6 +500,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
                       <span>{m.timestamp}</span>
                       {m.modelUsed && <span>• {m.modelUsed}</span>}
                       <button
+                        type="button"
                         onClick={() => handleCopy(m.id, m.content)}
                         className="hover:text-slate-300 transition flex items-center gap-1"
                         title="Copy message text"
@@ -498,6 +552,7 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
             {quickPrompts.map((p, i) => (
               <button
                 key={i}
+                type="button"
                 onClick={() => handleSendMessage(p)}
                 disabled={loading}
                 className={`px-2 py-1 rounded text-[10px] whitespace-nowrap transition border shrink-0 ${
@@ -532,9 +587,10 @@ I am connected live to **${currentSymbol}** order book telemetry and backed by *
               }`}
             />
             <button
+              type="button"
               onClick={() => handleSendMessage()}
               disabled={loading || !input.trim()}
-              className={`p-2 rounded-lg font-bold transition flex items-center justify-center shrink-0 ${
+              className={`p-2 rounded-lg font-bold transition flex items-center justify-center shrink-0 cursor-pointer ${
                 input.trim() && !loading
                   ? 'bg-[#7da98f] hover:bg-[#68987b] text-slate-950 shadow-md'
                   : isDark

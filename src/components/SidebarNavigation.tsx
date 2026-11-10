@@ -133,7 +133,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Quant AI Copilot',
     shortLabel: 'Quant AI',
     icon: MessageSquare,
-    hotkey: 'AI',
+    hotkey: 'C',
     badge: 'SEARCH',
     category: 'SIMULATION',
     color: 'text-violet-400'

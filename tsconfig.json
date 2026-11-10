@@ -25,5 +25,5 @@
     "noEmit": true
   },
   "include": ["src", "server.ts", "paperTrading.ts"],
-  "exclude": ["dist"]
+  "exclude": ["dist", "src/components/App3.tsx"]
 }

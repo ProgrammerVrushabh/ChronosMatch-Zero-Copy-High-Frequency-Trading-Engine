@@ -330,6 +330,9 @@ export default function App() {
       } else if (key === '6') {
         setActiveTab('3d');
         setHotkeyToast('🎲 View: 3D Spatial Floor');
+      } else if (key === 'C' || key === '7') {
+        setActiveTab('chat');
+        setHotkeyToast('🤖 View: Chronos Quant AI Copilot');
       } else if (key === 'R') {
         setActiveTab('rag');
         setHotkeyToast('🧠 View: Quant RAG Studio');
@@ -635,6 +638,7 @@ export default function App() {
         currentTps={telemetry?.ingest_tps || 24800}
         isOpen={isFloatingChatOpen}
         onOpenChange={setIsFloatingChatOpen}
+        hideLauncher={activeTab === 'chat'}
       />
 
       {/* Manual Order Injector Modal */}

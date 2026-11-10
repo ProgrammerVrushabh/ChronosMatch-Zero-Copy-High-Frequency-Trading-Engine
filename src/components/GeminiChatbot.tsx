@@ -1,22 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  MessageSquare,
   Send,
   Search,
-  Sparkles,
   Bot,
   User,
   ExternalLink,
   RefreshCw,
-  Cpu,
-  Layers,
-  Zap,
   Globe,
-  CheckCircle2,
-  AlertTriangle
+  RotateCcw,
+  Copy,
+  Check,
+  Database,
+  Info
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { publicApiFetch } from '../api';
+import { FormattedAIResponse } from '../utils/markdownRenderer';
 
 interface ChatMessage {
   id: string;
@@ -28,6 +27,12 @@ interface ChatMessage {
       uri: string;
       title: string;
     };
+  }[];
+  retrievedChunks?: {
+    id: string;
+    title: string;
+    category: string;
+    relevancePct: number;
   }[];
   modelUsed?: string;
 }
@@ -50,17 +55,20 @@ export const GeminiChatbot: React.FC<GeminiChatbotProps> = ({
       role: 'assistant',
       content: `Greetings. I am **Chronos AI**, your quantitative algorithmic advisor and low-latency systems architect.
 
-I am wired directly to the ChronosMatch matching telemetry and backed by **Google Search Grounding** for live macro intelligence. Ask me about:
+I am wired directly to the ChronosMatch matching telemetry and backed by **Google Search Grounding** and the **Chronos Quant RAG Corpus** for live macro & microstructure intelligence. Ask me about:
 - Live market news, earnings impact, and liquidity depth on **${currentSymbol}**
 - Microstructure analysis: Whale sweeps, order book imbalance, and iceberg execution
 - Systems engineering: POSIX \`mmap\` zero-copy IPC, CPU isolation, and sub-50µs execution`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      modelUsed: 'gemini-3.8-flash'
     }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-3.5-flash-lite'>('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite'>('gemini-3.8-flash');
   const [useSearchGrounding, setUseSearchGrounding] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [apiKeyNotice, setApiKeyNotice] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +79,25 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
+
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleClearHistory = () => {
+    setApiKeyNotice(null);
+    setMessages([
+      {
+        id: `welcome-${Date.now()}`,
+        role: 'assistant',
+        content: `Conversation reset. Ready for your quant trading, order-book microstructure, and kernel architecture questions on **${currentSymbol}**.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelUsed: selectedModel
+      }
+    ]);
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || input).trim();
@@ -89,7 +116,6 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
     setLoading(true);
 
     try {
-      // Prepare payload with conversation history
       const historyPayload = newMessages.map(m => ({
         role: m.role,
         content: m.content
@@ -101,7 +127,10 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
         body: JSON.stringify({
           messages: historyPayload,
           model: selectedModel,
-          useSearch: useSearchGrounding
+          useSearch: useSearchGrounding,
+          symbol: currentSymbol,
+          spread: currentSpread,
+          tps: currentTps
         })
       });
 
@@ -111,12 +140,19 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
         throw new Error(data.error || 'Failed to communicate with Chronos AI');
       }
 
+      if (data.apiKeyNotice) {
+        setApiKeyNotice(data.apiKeyNotice);
+      } else {
+        setApiKeyNotice(null);
+      }
+
       const botMsg: ChatMessage = {
         id: `bot-${Date.now()}`,
         role: 'assistant',
         content: data.text || 'No response returned.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         groundingChunks: data.groundingChunks || [],
+        retrievedChunks: data.retrievedChunks || [],
         modelUsed: data.model || selectedModel
       };
 
@@ -126,7 +162,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: `**Transmission Error**: ${err?.message || 'Could not connect to Gemini API. Ensure server has GEMINI_API_KEY injected.'}`,
+        content: `**Transmission Error**: ${err?.message || 'Could not connect to Chronos AI endpoint.'}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -181,8 +217,8 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
           </div>
         </div>
 
-        {/* Controls: Model Selector & Search Grounding Toggle */}
-        <div className="flex items-center gap-2">
+        {/* Controls: Model Selector, Search Grounding Toggle & Reset */}
+        <div className="flex items-center flex-wrap gap-2">
           {/* Model Selector */}
           <div
             className={`flex items-center gap-1 border rounded p-1 text-[11px] ${
@@ -190,9 +226,10 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
             }`}
           >
             <span className="text-[#64748b] px-1 text-[10px]">Model:</span>
-            {(['gemini-2.5-flash', 'gemini-3.5-flash-lite'] as const).map(m => (
+            {(['gemini-3.8-flash', 'gemini-3.1-flash-lite'] as const).map(m => (
               <button
                 key={m}
+                type="button"
                 onClick={() => setSelectedModel(m)}
                 className={`px-2 py-0.5 rounded transition ${
                   selectedModel === m
@@ -202,13 +239,14 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
                     : 'text-[#64748b] hover:text-slate-300'
                 }`}
               >
-                {m === 'gemini-2.5-flash' ? '2.5 Flash' : '3.5 Flash Lite'}
+                {m === 'gemini-3.8-flash' ? '3.8 Flash' : '3.1 Flash Lite'}
               </button>
             ))}
           </div>
 
           {/* Google Search Grounding Toggle */}
           <button
+            type="button"
             onClick={() => setUseSearchGrounding(!useSearchGrounding)}
             className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] font-semibold border transition ${
               useSearchGrounding
@@ -224,8 +262,45 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
             <Globe className="w-3.5 h-3.5 text-[#7da98f]" />
             <span>Search Grounding: {useSearchGrounding ? 'ON' : 'OFF'}</span>
           </button>
+
+          {/* Reset Conversation */}
+          <button
+            type="button"
+            onClick={handleClearHistory}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] font-semibold border transition ${
+              isDark
+                ? 'bg-[#151926] text-[#8ca0b4] border-[#2a2e39] hover:text-slate-100 hover:border-[#3b455c]'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+            }`}
+            title="Reset conversation thread"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset</span>
+          </button>
         </div>
       </div>
+
+      {apiKeyNotice && (
+        <div
+          className={`px-4 py-2 border-b text-[11px] flex items-center justify-between gap-2 ${
+            isDark
+              ? 'bg-amber-950/30 border-amber-800/40 text-amber-200'
+              : 'bg-amber-50 border-amber-200 text-amber-900'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Info className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+            <span>{apiKeyNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setApiKeyNotice(null)}
+            className="text-[10px] underline opacity-80 hover:opacity-100 shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Messages Thread */}
       <div className={`flex-1 p-4 overflow-y-auto space-y-4 ${isDark ? 'bg-[#1c2030]' : 'bg-white'}`}>
@@ -251,7 +326,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
               </div>
 
               <div
-                className={`rounded-lg p-3 text-xs leading-relaxed space-y-2 border ${
+                className={`rounded-lg p-3.5 text-xs leading-relaxed space-y-2 border flex-1 min-w-0 ${
                   isUser
                     ? isDark
                       ? 'bg-[#1c2434] border-[#2f3d56] text-slate-100'
@@ -262,11 +337,13 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
                 }`}
               >
                 <div
-                  className={`flex items-center justify-between gap-4 text-[10px] text-[#64748b] pb-1 border-b ${
+                  className={`flex items-center justify-between gap-4 text-[10px] text-[#64748b] pb-1.5 border-b ${
                     isDark ? 'border-[#222938]' : 'border-slate-200'
                   }`}
                 >
-                  <span>{isUser ? 'QUANT TRADER' : 'CHRONOS AI ARCHITECT'}</span>
+                  <span className="font-bold tracking-wider">
+                    {isUser ? 'QUANT TRADER' : 'CHRONOS AI ARCHITECT'}
+                  </span>
                   <div className="flex items-center gap-2">
                     {m.modelUsed && (
                       <span
@@ -280,13 +357,57 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
                       </span>
                     )}
                     <span>{m.timestamp}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(m.id, m.content)}
+                      className="hover:text-slate-300 transition flex items-center gap-1"
+                      title="Copy message"
+                    >
+                      {copiedId === m.id ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400">Copied</span>
+                        </>
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                {/* Message Body with Markdown-like presentation */}
-                <div className="whitespace-pre-wrap font-sans">
-                  {m.content}
+                {/* Formatted Markdown Message Body */}
+                <div className="font-sans text-xs">
+                  <FormattedAIResponse content={m.content} isDark={isDark} />
                 </div>
+
+                {/* Retrieved Quant RAG Chunks */}
+                {m.retrievedChunks && m.retrievedChunks.length > 0 && (
+                  <div
+                    className={`pt-2 mt-2 border-t space-y-1 ${
+                      isDark ? 'border-[#222938]' : 'border-slate-200'
+                    }`}
+                  >
+                    <span className="text-[10px] text-[#8ca0b4] flex items-center gap-1 uppercase tracking-wider font-mono">
+                      <Database className="w-3 h-3 text-violet-400" />
+                      Chronos Quant RAG Context:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 font-mono">
+                      {m.retrievedChunks.map((rc) => (
+                        <span
+                          key={rc.id}
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] border ${
+                            isDark
+                              ? 'bg-[#1c2030] text-violet-300 border-[#2e354b]'
+                              : 'bg-violet-50 text-violet-800 border-violet-200'
+                          }`}
+                        >
+                          <span className="truncate max-w-[220px]">{rc.title}</span>
+                          <span className="text-[9px] opacity-75">({rc.relevancePct}%)</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Grounding Sources / Search Citations */}
                 {m.groundingChunks && m.groundingChunks.length > 0 && (
@@ -343,7 +464,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
             >
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#7da98f]" />
               <span>
-                {useSearchGrounding ? 'Consulting Google Search & analyzing market data...' : 'Generating quantitative analysis...'}
+                {useSearchGrounding ? 'Consulting Google Search & analyzing live LOB telemetry...' : 'Synthesizing quantitative analysis...'}
               </span>
             </div>
           </div>
@@ -354,7 +475,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
 
       {/* Suggested Quick Prompts */}
       <div
-        className={`px-4 py-2 border-t flex items-center gap-2 overflow-x-auto no-scrollbar ${
+        className={`px-4 py-2 border-t flex items-center gap-2 overflow-x-auto scrollbar-none ${
           isDark ? 'border-[#2a2e39] bg-[#151926]/60' : 'border-slate-200 bg-slate-50'
         }`}
       >
@@ -362,6 +483,8 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
         {quickPrompts.map((p, i) => (
           <button
             key={`prompt-${i}`}
+            type="button"
+            disabled={loading}
             onClick={() => handleSendMessage(p)}
             className={`px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition border ${
               isDark
@@ -399,7 +522,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="px-4 py-2 rounded bg-[#7da98f] hover:bg-[#68987b] text-slate-950 font-bold flex items-center gap-1.5 transition disabled:opacity-40"
+          className="px-4 py-2 rounded bg-[#7da98f] hover:bg-[#68987b] text-slate-950 font-bold flex items-center gap-1.5 transition disabled:opacity-40 cursor-pointer"
         >
           <Send className="w-3.5 h-3.5 text-slate-950" />
           <span>SEND</span>

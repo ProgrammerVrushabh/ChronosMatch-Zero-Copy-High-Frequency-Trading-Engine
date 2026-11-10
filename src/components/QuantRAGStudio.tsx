@@ -1,28 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { apiFetch } from '../api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { publicApiFetch } from '../api';
 import {
   Brain,
   Search,
   Database,
-  Cpu,
   Layers,
   Sparkles,
   Zap,
   ArrowRight,
   BookOpen,
-  CheckCircle2,
-  FileText,
-  Clock,
-  ShieldCheck,
   Plus,
-  ChevronDown,
-  ChevronUp,
-  Sliders,
-  ExternalLink,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { FormattedAIResponse } from '../utils/markdownRenderer';
 
 interface RetrievedChunk {
   id: string;
@@ -42,6 +35,7 @@ interface RAGResponse {
   retrievalLatencyMs: number;
   totalLatencyMs: number;
   model: string;
+  apiKeyNotice?: string;
 }
 
 interface RAGDocument {
@@ -69,6 +63,7 @@ export const QuantRAGStudio: React.FC = () => {
   const [query, setQuery] = useState(PRESET_QUERIES[0]);
   const [topK, setTopK] = useState(3);
   const [includeTelemetry, setIncludeTelemetry] = useState(true);
+  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite'>('gemini-3.8-flash');
   const [loading, setLoading] = useState(false);
   const [ragResult, setRagResult] = useState<RAGResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -85,10 +80,9 @@ export const QuantRAGStudio: React.FC = () => {
   const [newContent, setNewContent] = useState('');
   const [newTags, setNewTags] = useState('ALGO, RISK');
 
-  // Load knowledge corpus
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/rag/documents');
+      const res = await publicApiFetch('/api/rag/documents');
       const data = await res.json();
       if (data.documents) {
         setDocuments(data.documents);
@@ -96,28 +90,24 @@ export const QuantRAGStudio: React.FC = () => {
     } catch (e) {
       console.warn('Failed to load RAG docs', e);
     }
-  };
-
-  useEffect(() => {
-    fetchDocuments();
   }, []);
 
-  const handleExecuteRAG = async (queryText?: string) => {
-    const q = queryText || query;
-    if (!q.trim()) return;
+  const handleExecuteRAG = useCallback(async (queryText?: string) => {
+    const q = (queryText ?? query).trim();
+    if (!q) return;
 
     setLoading(true);
     setErrorMsg(null);
 
     try {
-      const res = await apiFetch('/api/rag/query', {
+      const res = await publicApiFetch('/api/rag/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: q,
           topK,
           includeTelemetry,
-          model: 'gemini-2.5-flash'
+          model: selectedModel
         })
       });
 
@@ -132,7 +122,12 @@ export const QuantRAGStudio: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query, topK, includeTelemetry, selectedModel]);
+
+  useEffect(() => {
+    fetchDocuments();
+    handleExecuteRAG(PRESET_QUERIES[0]);
+  }, []);
 
   const handleIngestDocument = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,7 +135,7 @@ export const QuantRAGStudio: React.FC = () => {
 
     try {
       const tagsArray = newTags.split(',').map(t => t.trim()).filter(Boolean);
-      const res = await apiFetch('/api/rag/documents', {
+      const res = await publicApiFetch('/api/rag/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -195,8 +190,13 @@ export const QuantRAGStudio: React.FC = () => {
         </div>
 
         {/* View Switcher: Console vs Corpus */}
-        <div className="flex items-center gap-1.5 p-1 rounded-lg bg-[#181d29] border border-[#2a2e39] text-xs">
+        <div
+          className={`flex items-center gap-1.5 p-1 rounded-lg border text-xs ${
+            isDark ? 'bg-[#181d29] border-[#2a2e39]' : 'bg-slate-100 border-slate-300'
+          }`}
+        >
           <button
+            type="button"
             onClick={() => setActiveSubView('console')}
             className={`px-3 py-1 rounded font-bold transition flex items-center gap-1.5 text-[11px] ${
               activeSubView === 'console'
@@ -208,6 +208,7 @@ export const QuantRAGStudio: React.FC = () => {
             <span>RAG QUERY CONSOLE</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveSubView('corpus')}
             className={`px-3 py-1 rounded font-bold transition flex items-center gap-1.5 text-[11px] ${
               activeSubView === 'corpus'
@@ -222,7 +223,11 @@ export const QuantRAGStudio: React.FC = () => {
       </div>
 
       {/* RAG Visual Pipeline Architecture Flow */}
-      <div className="my-3.5 p-3 rounded-lg bg-[#181d29]/80 border border-[#2a2e39] overflow-x-auto">
+      <div
+        className={`my-3.5 p-3 rounded-lg border overflow-x-auto ${
+          isDark ? 'bg-[#181d29]/80 border-[#2a2e39]' : 'bg-slate-50 border-slate-200'
+        }`}
+      >
         <div className="flex items-center justify-between min-w-[700px] text-[10px] uppercase font-bold tracking-wider text-[#64748b]">
           <div className="flex items-center gap-2 p-2 rounded bg-[#131722] border border-[#2e3748] text-slate-200">
             <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
@@ -266,11 +271,16 @@ export const QuantRAGStudio: React.FC = () => {
               {PRESET_QUERIES.map((preset, idx) => (
                 <button
                   key={idx}
+                  type="button"
                   onClick={() => {
                     setQuery(preset);
                     handleExecuteRAG(preset);
                   }}
-                  className="px-2.5 py-1 rounded bg-[#181d29] hover:bg-[#202738] border border-[#2a2e39] text-[#8ca0b4] hover:text-slate-100 transition text-[11px] text-left truncate max-w-full sm:max-w-md"
+                  className={`px-2.5 py-1 rounded border transition text-[11px] text-left truncate max-w-full sm:max-w-md ${
+                    isDark
+                      ? 'bg-[#181d29] hover:bg-[#202738] border-[#2a2e39] text-[#8ca0b4] hover:text-slate-100'
+                      : 'bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-700'
+                  }`}
                 >
                   › {preset}
                 </button>
@@ -279,7 +289,11 @@ export const QuantRAGStudio: React.FC = () => {
           </div>
 
           {/* Main Query Bar */}
-          <div className="p-3.5 rounded-lg bg-[#181d29] border border-[#2a2e39] space-y-3">
+          <div
+            className={`p-3.5 rounded-lg border space-y-3 ${
+              isDark ? 'bg-[#181d29] border-[#2a2e39]' : 'bg-slate-50 border-slate-200'
+            }`}
+          >
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <input
                 type="text"
@@ -289,12 +303,17 @@ export const QuantRAGStudio: React.FC = () => {
                   if (e.key === 'Enter') handleExecuteRAG();
                 }}
                 placeholder="Ask any question grounded in our zero-copy IPC, LOB dynamics, or live market depth..."
-                className="flex-1 bg-[#131722] border border-[#3b455c] rounded-lg px-3.5 py-2.5 text-xs text-slate-100 placeholder:text-[#64748b] focus:outline-none focus:border-violet-500 font-mono"
+                className={`flex-1 border rounded-lg px-3.5 py-2.5 text-xs focus:outline-none focus:border-violet-500 font-mono ${
+                  isDark
+                    ? 'bg-[#131722] border-[#3b455c] text-slate-100 placeholder:text-[#64748b]'
+                    : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+                }`}
               />
               <button
+                type="button"
                 onClick={() => handleExecuteRAG()}
                 disabled={loading}
-                className="px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-md active:scale-98 shrink-0 disabled:opacity-50"
+                className="px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-md active:scale-98 shrink-0 disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -312,7 +331,7 @@ export const QuantRAGStudio: React.FC = () => {
 
             {/* RAG Controls & Options */}
             <div className="flex flex-wrap items-center justify-between text-xs text-[#64748b] pt-1 border-t border-[#2a2e39]/50 gap-2">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -320,7 +339,7 @@ export const QuantRAGStudio: React.FC = () => {
                     onChange={(e) => setIncludeTelemetry(e.target.checked)}
                     className="accent-violet-500 rounded"
                   />
-                  <span className="text-[11px] font-semibold text-slate-300">
+                  <span className={`text-[11px] font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                     Inject Live LOB Telemetry
                   </span>
                 </label>
@@ -329,8 +348,10 @@ export const QuantRAGStudio: React.FC = () => {
                   <span>Top-K Sources:</span>
                   <select
                     value={topK}
-                    onChange={(e) => setTopK(parseInt(e.target.value))}
-                    className="bg-[#131722] border border-[#2a2e39] rounded px-1.5 py-0.5 text-slate-200"
+                    onChange={(e) => setTopK(parseInt(e.target.value, 10))}
+                    className={`border rounded px-1.5 py-0.5 ${
+                      isDark ? 'bg-[#131722] border-[#2a2e39] text-slate-200' : 'bg-white border-slate-300 text-slate-800'
+                    }`}
                   >
                     <option value={1}>1 Chunk</option>
                     <option value={2}>2 Chunks</option>
@@ -338,6 +359,24 @@ export const QuantRAGStudio: React.FC = () => {
                     <option value={4}>4 Chunks</option>
                     <option value={5}>5 Chunks</option>
                   </select>
+                </div>
+
+                <div className="flex items-center gap-1 text-[11px]">
+                  <span>Model:</span>
+                  {(['gemini-3.8-flash', 'gemini-3.1-flash-lite'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setSelectedModel(m)}
+                      className={`px-2 py-0.5 rounded transition ${
+                        selectedModel === m
+                          ? 'bg-violet-600/30 text-violet-300 border border-violet-500/40 font-bold'
+                          : 'text-[#64748b] hover:text-slate-300'
+                      }`}
+                    >
+                      {m === 'gemini-3.8-flash' ? '3.8 Flash' : '3.1 Flash Lite'}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -353,6 +392,19 @@ export const QuantRAGStudio: React.FC = () => {
             </div>
           </div>
 
+          {ragResult?.apiKeyNotice && (
+            <div
+              className={`p-2.5 rounded-lg border text-[11px] flex items-center gap-2 ${
+                isDark
+                  ? 'bg-amber-950/30 border-amber-800/40 text-amber-200'
+                  : 'bg-amber-50 border-amber-200 text-amber-900'
+              }`}
+            >
+              <Info className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span>{ragResult.apiKeyNotice}</span>
+            </div>
+          )}
+
           {errorMsg && (
             <div className="p-3 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -364,7 +416,11 @@ export const QuantRAGStudio: React.FC = () => {
           {ragResult && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
               {/* Left Column: Synthesized Grounded Response */}
-              <div className="lg:col-span-7 p-4 rounded-lg bg-[#181d29] border border-[#2a2e39] space-y-3">
+              <div
+                className={`lg:col-span-7 p-4 rounded-lg border space-y-3 ${
+                  isDark ? 'bg-[#181d29] border-[#2a2e39]' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
                 <div className="flex items-center justify-between pb-2 border-b border-[#2a2e39]">
                   <span className="text-xs font-bold uppercase tracking-wider text-violet-300 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-violet-400" />
@@ -375,13 +431,17 @@ export const QuantRAGStudio: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="text-xs leading-relaxed text-slate-200 whitespace-pre-wrap font-sans">
-                  {ragResult.answer}
+                <div className="text-xs leading-relaxed font-sans">
+                  <FormattedAIResponse content={ragResult.answer} isDark={isDark} />
                 </div>
               </div>
 
               {/* Right Column: Retrieved Knowledge Chunks Inspector */}
-              <div className="lg:col-span-5 p-4 rounded-lg bg-[#181d29] border border-[#2a2e39] space-y-3">
+              <div
+                className={`lg:col-span-5 p-4 rounded-lg border space-y-3 ${
+                  isDark ? 'bg-[#181d29] border-[#2a2e39]' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
                 <div className="flex items-center justify-between pb-2 border-b border-[#2a2e39]">
                   <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
                     <Database className="w-4 h-4 text-cyan-400" />
@@ -396,10 +456,12 @@ export const QuantRAGStudio: React.FC = () => {
                   {ragResult.retrievedChunks.map((chunk, idx) => (
                     <div
                       key={chunk.id}
-                      className="p-3 rounded-lg bg-[#131722] border border-[#283244] space-y-1.5"
+                      className={`p-3 rounded-lg border space-y-1.5 ${
+                        isDark ? 'bg-[#131722] border-[#283244]' : 'bg-white border-slate-200'
+                      }`}
                     >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-100 truncate pr-2">
+                        <span className={`font-bold truncate pr-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                           #{idx + 1} {chunk.title}
                         </span>
                         <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">
@@ -444,6 +506,7 @@ export const QuantRAGStudio: React.FC = () => {
               {['ALL', 'SYSTEM_ARCHITECTURE', 'MARKET_MICROSTRUCTURE', 'QUANT_STRATEGIES', 'ANOMALIES_AND_RISK', 'USER_RULES'].map(cat => (
                 <button
                   key={cat}
+                  type="button"
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-2.5 py-1 rounded text-[11px] font-bold transition ${
                     selectedCategory === cat
@@ -457,6 +520,7 @@ export const QuantRAGStudio: React.FC = () => {
             </div>
 
             <button
+              type="button"
               onClick={() => setIsIngestModalOpen(true)}
               className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
             >
@@ -512,6 +576,7 @@ export const QuantRAGStudio: React.FC = () => {
                 INGEST CUSTOM QUANTITATIVE DOCUMENT
               </h3>
               <button
+                type="button"
                 onClick={() => setIsIngestModalOpen(false)}
                 className="text-[#64748b] hover:text-slate-100"
               >
