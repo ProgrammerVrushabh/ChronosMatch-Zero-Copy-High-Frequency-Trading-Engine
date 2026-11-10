@@ -206,6 +206,10 @@ function getGeminiClients(): GoogleGenAI[] {
   return clients;
 }
 
+function hasGeminiCredential(): boolean {
+  return Boolean(process.env.GEMINI_API_KEY?.trim() || process.env.API_KEY?.trim());
+}
+
 function isGeminiAuthOrKeyError(error: unknown): boolean {
   const message = getErrorMessage(error).toLowerCase();
   return (
@@ -950,18 +954,18 @@ app.post('/api/gemini/chat', async (req, res) => {
       })),
       model: actualModel
     });
-  } catch (_error: any) {
-    const fallback = synthesizeLocalQuantResponse(lastUserMessage, retrievals);
-    res.json({
-      text: fallback.text,
-      groundingChunks: useSearch ? fallback.groundingChunks : [],
-      retrievedChunks: retrievals.map(r => ({
-        id: r.doc.id,
-        title: r.doc.title,
-        category: r.doc.category,
-        relevancePct: Math.round(r.score * 100)
-      })),
-      model: `${requestedModel} (RAG Grounded)`
+  } catch (error: any) {
+    const message = getErrorMessage(error);
+    console.error('[Gemini] Chat generation failed:', message);
+    if (!hasGeminiCredential()) {
+      return res.status(503).json({
+        error: 'GEMINI_API_KEY is not configured. Add it to the Render service environment and redeploy.',
+        retryable: false
+      });
+    }
+    return res.status(502).json({
+      error: 'Gemini did not return a response. Check the configured API key, model availability, and Render logs.',
+      retryable: isTransientGeminiError(error)
     });
   }
 });
@@ -1083,16 +1087,18 @@ GROUNDING RULES:
       totalLatencyMs,
       model: actualModel
     });
-  } catch (_error: any) {
-    const fallback = synthesizeLocalQuantResponse(query, retrievals);
-    const totalLatencyMs = Date.now() - startTime;
-    res.json({
-      answer: fallback.text,
-      retrievedChunks: mappedChunks,
-      telemetryIncluded: includeTelemetry && !!latestTelemetry,
-      retrievalLatencyMs,
-      totalLatencyMs,
-      model: `${requestedModel} (RAG Grounded)`
+  } catch (error: any) {
+    const message = getErrorMessage(error);
+    console.error('[Gemini] RAG generation failed:', message);
+    if (!hasGeminiCredential()) {
+      return res.status(503).json({
+        error: 'GEMINI_API_KEY is not configured. Add it to the Render service environment and redeploy.',
+        retryable: false
+      });
+    }
+    return res.status(502).json({
+      error: 'Gemini did not return a response. Check the configured API key, model availability, and Render logs.',
+      retryable: isTransientGeminiError(error)
     });
   }
 });
