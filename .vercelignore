@@ -1,0 +1,8 @@
+New folder/
+node_modules/
+dist/
+dist-server/
+__pycache__/
+*.py[cod]
+.env*
+!.env.example
