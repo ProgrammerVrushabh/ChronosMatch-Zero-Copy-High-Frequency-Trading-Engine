@@ -32,24 +32,25 @@ const DEFAULT_ENGINE_RATE = 25000;
 const MAX_BENCHMARK_COUNT = 1_000_000;
 function normalizeGeminiModel(rawModel?: string): string {
   const cleaned = rawModel?.trim();
-  if (!cleaned || cleaned === 'gemini-2.5-flash') {
-    return 'gemini-3.8-flash';
+  if (!cleaned || cleaned === 'gemini-3.8-flash') {
+    return 'gemini-2.5-flash';
   }
-  if (cleaned === 'gemini-3.5-flash-lite') {
-    return 'gemini-3.1-flash-lite';
+  if (cleaned === 'gemini-3.1-flash-lite' || cleaned === 'gemini-3.5-flash-lite') {
+    return 'gemini-2.5-flash-lite';
   }
   return cleaned;
 }
 
-const PRIMARY_GEMINI_MODEL = normalizeGeminiModel(process.env.GEMINI_MODEL) || 'gemini-3.8-flash';
-const FALLBACK_GEMINI_MODEL = normalizeGeminiModel(process.env.GEMINI_FALLBACK_MODEL) || 'gemini-3.1-flash-lite';
+const PRIMARY_GEMINI_MODEL = normalizeGeminiModel(process.env.GEMINI_MODEL) || 'gemini-2.5-flash';
+const FALLBACK_GEMINI_MODEL = normalizeGeminiModel(process.env.GEMINI_FALLBACK_MODEL) || 'gemini-2.5-flash-lite';
 const ALLOWED_GEMINI_MODELS = new Set([
   PRIMARY_GEMINI_MODEL,
   FALLBACK_GEMINI_MODEL,
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
   'gemini-3.8-flash',
   'gemini-3.1-flash-lite',
-  'gemini-flash-latest',
-  'gemini-2.5-flash',
   'gemini-3.5-flash-lite'
 ]);
 const GEMINI_RETRY_DELAYS_MS = [400, 1_000];
@@ -143,10 +144,12 @@ const operatorOnly = [requireAuth, requireOperator];
 
 function getGeminiClients(): GoogleGenAI[] {
   const clients: GoogleGenAI[] = [];
-  const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.API_KEY?.trim();
+  const apiKey = process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim() ||
+    process.env.API_KEY?.trim();
 
-  // Only pass apiKey directly if it is a standard Gemini Developer API key (starts with AIza)
-  if (apiKey && apiKey.startsWith('AIza')) {
+  // Let the SDK validate the configured key instead of rejecting keys by prefix.
+  if (apiKey) {
     clients.push(
       new GoogleGenAI({
         apiKey,
@@ -161,12 +164,13 @@ function getGeminiClients(): GoogleGenAI[] {
     );
   }
 
-  // Always include Application Default Credentials (ADC) client on v1beta for Cloud Run / AI Studio runtime.
-  // Temporarily clear GEMINI_API_KEY / GOOGLE_API_KEY during construction so @google/genai's getApiKeyFromEnv()
-  // does not override googleAuthOptions with a non-AIza token.
+  // Include Application Default Credentials (ADC) as a fallback for Cloud Run.
+  // Temporarily clear API-key environment variables so the SDK does not override
+  // googleAuthOptions while constructing the ADC client.
   const origWarn = console.warn;
   const savedGeminiKey = process.env.GEMINI_API_KEY;
   const savedGoogleKey = process.env.GOOGLE_API_KEY;
+  const savedApiKey = process.env.API_KEY;
   console.warn = (...args: unknown[]) => {
     if (typeof args[0] === 'string' && args[0].includes('API key should be set when using the Gemini API')) {
       return;
@@ -176,6 +180,7 @@ function getGeminiClients(): GoogleGenAI[] {
   try {
     delete process.env.GEMINI_API_KEY;
     delete process.env.GOOGLE_API_KEY;
+    delete process.env.API_KEY;
     clients.push(
       new GoogleGenAI({
         apiVersion: 'v1beta',
@@ -194,16 +199,28 @@ function getGeminiClients(): GoogleGenAI[] {
       })
     );
   } finally {
-    if (savedGeminiKey !== undefined && savedGeminiKey.startsWith('AIza')) {
+    if (savedGeminiKey !== undefined) {
       process.env.GEMINI_API_KEY = savedGeminiKey;
     }
-    if (savedGoogleKey !== undefined && savedGoogleKey.startsWith('AIza')) {
+    if (savedGoogleKey !== undefined) {
       process.env.GOOGLE_API_KEY = savedGoogleKey;
+    }
+    if (savedApiKey !== undefined) {
+      process.env.API_KEY = savedApiKey;
     }
     console.warn = origWarn;
   }
 
   return clients;
+}
+
+function hasGeminiCredential(): boolean {
+  return Boolean(
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim() ||
+    process.env.API_KEY?.trim() ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()
+  );
 }
 
 function isGeminiAuthOrKeyError(error: unknown): boolean {
@@ -237,7 +254,7 @@ async function generateGeminiContent(
   requestedModel: string
 ): Promise<{ response: any; model: string }> {
   const resolvedPrimary = normalizeGeminiModel(requestedModel);
-  const models = [resolvedPrimary, FALLBACK_GEMINI_MODEL, 'gemini-3.8-flash', 'gemini-3.1-flash-lite'].filter(
+  const models = [resolvedPrimary, FALLBACK_GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.5-flash-lite'].filter(
     (model, index, availableModels) => Boolean(model) && availableModels.indexOf(model) === index
   );
   const clients = getGeminiClients();
@@ -245,7 +262,7 @@ async function generateGeminiContent(
 
   for (const client of clients) {
     for (const model of models) {
-      const modelConfig = model === FALLBACK_GEMINI_MODEL || model === 'gemini-3.1-flash-lite'
+      const modelConfig = model === FALLBACK_GEMINI_MODEL || model === 'gemini-2.5-flash-lite'
         ? { ...config, tools: undefined }
         : { ...config };
       if (modelConfig.tools === undefined) {
@@ -950,7 +967,15 @@ app.post('/api/gemini/chat', async (req, res) => {
       })),
       model: actualModel
     });
-  } catch (_error: any) {
+  } catch (error: any) {
+    const message = getErrorMessage(error);
+    console.error('[Gemini] Chat generation failed:', message);
+    if (!hasGeminiCredential() && isGeminiAuthOrKeyError(error)) {
+      return res.status(503).json({
+        error: 'No Gemini credential is configured. Set GEMINI_API_KEY in the Render service environment and redeploy.',
+        retryable: false
+      });
+    }
     const fallback = synthesizeLocalQuantResponse(lastUserMessage, retrievals);
     res.json({
       text: fallback.text,
@@ -1083,7 +1108,15 @@ GROUNDING RULES:
       totalLatencyMs,
       model: actualModel
     });
-  } catch (_error: any) {
+  } catch (error: any) {
+    const message = getErrorMessage(error);
+    console.error('[Gemini] RAG generation failed:', message);
+    if (!hasGeminiCredential() && isGeminiAuthOrKeyError(error)) {
+      return res.status(503).json({
+        error: 'No Gemini credential is configured. Set GEMINI_API_KEY in the Render service environment and redeploy.',
+        retryable: false
+      });
+    }
     const fallback = synthesizeLocalQuantResponse(query, retrievals);
     const totalLatencyMs = Date.now() - startTime;
     res.json({

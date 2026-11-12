@@ -63,7 +63,7 @@ export const QuantRAGStudio: React.FC = () => {
   const [query, setQuery] = useState(PRESET_QUERIES[0]);
   const [topK, setTopK] = useState(3);
   const [includeTelemetry, setIncludeTelemetry] = useState(true);
-  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite'>('gemini-3.8-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>('gemini-2.5-flash');
   const [loading, setLoading] = useState(false);
   const [ragResult, setRagResult] = useState<RAGResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -363,7 +363,7 @@ export const QuantRAGStudio: React.FC = () => {
 
                 <div className="flex items-center gap-1 text-[11px]">
                   <span>Model:</span>
-                  {(['gemini-3.8-flash', 'gemini-3.1-flash-lite'] as const).map((m) => (
+                  {(['gemini-2.5-flash', 'gemini-2.5-flash-lite'] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -374,7 +374,7 @@ export const QuantRAGStudio: React.FC = () => {
                           : 'text-[#64748b] hover:text-slate-300'
                       }`}
                     >
-                      {m === 'gemini-3.8-flash' ? '3.8 Flash' : '3.1 Flash Lite'}
+                      {m === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Flash Lite'}
                     </button>
                   ))}
                 </div>
