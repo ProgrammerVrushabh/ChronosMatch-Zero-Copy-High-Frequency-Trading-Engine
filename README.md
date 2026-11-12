@@ -194,8 +194,10 @@ The Express/Python ChronosMatch engine in `server.ts` is intended for the
 local full-stack server and is not started by this static Vercel deployment.
 The included [`Dockerfile`](./Dockerfile) and [`render.yaml`](./render.yaml)
 deploy the persistent Node/Python engine to Render. Set `FRONTEND_URL` to the
-Vercel production URL, then set `VITE_API_URL` in the Vercel project to the
-Render service URL and redeploy. This enables the live engine API and SSE
+Vercel production URL, then set `VITE_API_URL` in the Vercel project to
+`https://chronosmatch-zero-copy-high-frequency.onrender.com` and redeploy. The
+Vercel rewrite in [`vercel.json`](./vercel.json) uses this same Render service
+URL. This enables the live engine API and SSE
 telemetry stream used by the order book.
 
 ### Oracle Cloud Always Free VM

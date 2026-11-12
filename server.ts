@@ -976,17 +976,9 @@ app.post('/api/gemini/chat', async (req, res) => {
         retryable: false
       });
     }
-    const fallback = synthesizeLocalQuantResponse(lastUserMessage, retrievals);
-    res.json({
-      text: fallback.text,
-      groundingChunks: useSearch ? fallback.groundingChunks : [],
-      retrievedChunks: retrievals.map(r => ({
-        id: r.doc.id,
-        title: r.doc.title,
-        category: r.doc.category,
-        relevancePct: Math.round(r.score * 100)
-      })),
-      model: `${requestedModel} (RAG Grounded)`
+    return res.status(502).json({
+      error: 'Gemini did not return a response. Check the configured API key, model availability, and Render logs.',
+      retryable: isTransientGeminiError(error)
     });
   }
 });
@@ -1117,15 +1109,9 @@ GROUNDING RULES:
         retryable: false
       });
     }
-    const fallback = synthesizeLocalQuantResponse(query, retrievals);
-    const totalLatencyMs = Date.now() - startTime;
-    res.json({
-      answer: fallback.text,
-      retrievedChunks: mappedChunks,
-      telemetryIncluded: includeTelemetry && !!latestTelemetry,
-      retrievalLatencyMs,
-      totalLatencyMs,
-      model: `${requestedModel} (RAG Grounded)`
+    return res.status(502).json({
+      error: 'Gemini did not return a response. Check the configured API key, model availability, and Render logs.',
+      retryable: isTransientGeminiError(error)
     });
   }
 });
