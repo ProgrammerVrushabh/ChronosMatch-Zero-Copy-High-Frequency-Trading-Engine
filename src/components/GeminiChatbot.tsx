@@ -60,12 +60,12 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
 - Microstructure analysis: Whale sweeps, order book imbalance, and iceberg execution
 - Systems engineering: POSIX \`mmap\` zero-copy IPC, CPU isolation, and sub-50µs execution`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      modelUsed: 'gemini-3.8-flash'
+      modelUsed: 'gemini-2.5-flash'
     }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite'>('gemini-3.8-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>('gemini-2.5-flash');
   const [useSearchGrounding, setUseSearchGrounding] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [apiKeyNotice, setApiKeyNotice] = useState<string | null>(null);
@@ -226,7 +226,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
             }`}
           >
             <span className="text-[#64748b] px-1 text-[10px]">Model:</span>
-            {(['gemini-3.8-flash', 'gemini-3.1-flash-lite'] as const).map(m => (
+            {(['gemini-2.5-flash', 'gemini-2.5-flash-lite'] as const).map(m => (
               <button
                 key={m}
                 type="button"
@@ -239,7 +239,7 @@ I am wired directly to the ChronosMatch matching telemetry and backed by **Googl
                     : 'text-[#64748b] hover:text-slate-300'
                 }`}
               >
-                {m === 'gemini-3.8-flash' ? '3.8 Flash' : '3.1 Flash Lite'}
+                {m === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Flash Lite'}
               </button>
             ))}
           </div>
